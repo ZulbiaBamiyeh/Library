@@ -385,6 +385,7 @@ export class Library implements View {
   yaw = 0; pitch = 0; pos = new THREE.Vector3(0, EYE, 6.6); // pos is the eye
   eyeH = EYE; // lower while crouching
   crouch = false; // held (keyboard) or toggled (touch)
+  private stair = { dir: 0, from: 0, stopped: false, afterStop: false }; // the touch stair-walk: direction, starting floor, paused at a landing
   shop: Shop | null = null;
   stalls: Record<number, Stall> = {};
   private shopLights: { L: THREE.Light }[] = [];
@@ -1785,35 +1786,49 @@ export class Library implements View {
       if (k.KeyW || k.ArrowUp) fz += 1; if (k.KeyS || k.ArrowDown) fz -= 1;
       if (k.KeyA || k.ArrowLeft) fx -= 1; if (k.KeyD || k.ArrowRight) fx += 1;
       fx += this.joy.x; fz += -this.joy.y;
-      const len = Math.hypot(fx, fz);
       const feet0 = this.feet;
       // crouch while C or Ctrl is held (or the touch button is on); you cannot stand up under a low ceiling
       const lv0 = this.levelOf(feet0);
       const wantLow = this.crouch || !!(k.KeyC || k.ControlLeft || k.ControlRight);
       const low = wantLow || (this.grounded && this.headroom(this.pos.x, this.pos.z, lv0) < STAND);
       this.eyeH += ((low ? EYE_LOW : EYE) - this.eyeH) * (1 - Math.exp(-dt * 12));
-      // on a spiral stair, pushing forward on the touch stick steers you round the curve (up or down,
-      // whichever way you are facing), so nobody has to keep turning the camera
-      if (Math.hypot(this.joy.x, this.joy.y) > 0.2 && -this.joy.y > 0.3) {
+      // On a spiral stair, pushing forward on the touch stick walks you round the curve (down, unless you
+      // were facing back up it when you started). It steers your feet, not the camera, and it stops you at
+      // each floor's landing; let go and push again to walk off where you are looking.
+      let stairW: { x: number; z: number } | null = null;
+      const pushing = Math.hypot(this.joy.x, this.joy.y) > 0.2 && -this.joy.y > 0.3;
+      if (!pushing) { this.stair.dir = 0; this.stair.stopped = false; }
+      else if (!this.stair.stopped) {
         for (const spr of this.spirals) {
           const dx = this.pos.x - spr.x, dz = this.pos.z - spr.z, r = Math.hypot(dx, dz);
           if (r < spr.rIn - 0.3 || r > spr.rOut + 0.3 || feet0 > -spr.top * LH + 0.6 || feet0 < -spr.bot * LH - 0.6) continue;
           const a = Math.atan2(dz, dx);
-          let tx = -Math.sin(a), tz = Math.cos(a); // the way round that goes down
-          const fx0 = -Math.sin(this.yaw), fz0 = -Math.cos(this.yaw);
-          if (tx * fx0 + tz * fz0 < -0.25) { tx = -tx; tz = -tz; } // facing roughly across it: go down
+          const tx = -Math.sin(a), tz = Math.cos(a); // the way round that goes down
+          const fx0 = -Math.sin(this.yaw), fz0 = -Math.cos(this.yaw), dot = tx * fx0 + tz * fz0;
+          const off = Math.abs(Math.atan2(Math.sin(a - spr.a0), Math.cos(a - spr.a0)));
+          const k = Math.round(-feet0 / LH), atLanding = off < spr.gap + 0.12 && Math.abs(feet0 + k * LH) < 0.35;
+          if (!this.stair.dir) {
+            // starting out: just off a landing, the default is down; otherwise follow the way you face,
+            // and if you are facing out of the stair, it leaves you alone
+            if (this.stair.afterStop && Math.abs(dot) < 0.5) break;
+            this.stair.dir = dot < -0.25 ? -1 : 1; this.stair.from = k; this.stair.afterStop = false;
+          }
+          if (atLanding && k !== this.stair.from) { this.stair.stopped = true; this.stair.afterStop = true; break; }
           const pull = ((spr.rIn + spr.rOut) / 2 - r) * 0.35;
-          const wx = tx + Math.cos(a) * pull, wz = tz + Math.sin(a) * pull;
-          const want = Math.atan2(-wx, -wz);
-          const diff = Math.atan2(Math.sin(want - this.yaw), Math.cos(want - this.yaw));
-          this.yaw += diff * Math.min(1, dt * 5);
+          const wx = tx * this.stair.dir + Math.cos(a) * pull, wz = tz * this.stair.dir + Math.sin(a) * pull, wl = Math.hypot(wx, wz);
+          stairW = { x: wx / wl, z: wz / wl };
           break;
         }
       }
-      if (len > 0.05) {
-        const sp = (low ? 1.7 : k.ShiftLeft || k.ShiftRight ? 5.2 : 3.4) * dt / Math.max(1, len);
-        const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
-        this.pos.x += (-sy * fz + cy * fx) * sp; this.pos.z += (-cy * fz - sy * fx) * sp;
+      if (this.stair.stopped) { fx = 0; fz = 0; }
+      const len2 = Math.hypot(fx, fz);
+      if (len2 > 0.05) {
+        const sp = (low ? 1.7 : k.ShiftLeft || k.ShiftRight ? 5.2 : 3.4) * dt / Math.max(1, len2);
+        if (stairW) { const m = Math.min(1, len2); this.pos.x += stairW.x * m * sp * Math.max(1, len2); this.pos.z += stairW.z * m * sp * Math.max(1, len2); }
+        else {
+          const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
+          this.pos.x += (-sy * fz + cy * fx) * sp; this.pos.z += (-cy * fz - sy * fx) * sp;
+        }
         this.collide(this.pos, feet0);
         this.rails(prev, this.pos, feet0);
         this.helixWall(prev, this.pos, feet0);
