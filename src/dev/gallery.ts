@@ -17,7 +17,7 @@ const items: THREE.Object3D[] = [];
 if (which === 'units') {
   const p = makeMage('#2a4a7a', '#c9a13b', '#7fe0ff', 'pointed'); setMageStaff(p, ARTIFACT_LIST[1].model); items.push(p.root);
   const e = makeMage('#6a1a2a', '#b0b0b8', '#ff5070', 'hood'); setMageStaff(e, ARTIFACT_LIST[7].model); items.push(e.root);
-  for (const k of ['imp', 'skeleton', 'treant', 'rat', 'salamander', 'ball', 'cherub', 'pitlord', 'frostlich', 'worldroot', 'sapling', 'decoy', 'egg', 'phoenix', 'snowman', 'leech', 'hydra', 'tesla', 'stormspire', 'clone', 'golem', 'seraph', 'statue']) items.push(makeUnit(k, null));
+  for (const k of ['imp', 'skeleton', 'treant', 'rat', 'salamander', 'ball', 'cherub', 'pitlord', 'frostlich', 'worldroot', 'sapling', 'decoy', 'egg', 'phoenix', 'snowman', 'leech', 'hydra', 'tesla', 'stormspire', 'clone', 'golem', 'seraph', 'statue', 'mimic', 'bookworm', 'author', 'thing']) items.push(makeUnit(k, null));
   items.push(makeSheep()); const ice = new THREE.Group(); ice.add(makeIceBlock()); items.push(ice);
   camera.position.set(0, 6, 15); camera.lookAt(0, 0.2, -1.5);
 } else {

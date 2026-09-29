@@ -1,6 +1,6 @@
 // The duel simulation. Plain TypeScript, no rendering: two tomes and a seed in,
 // an event log and state snapshots out. Fixed 20 ticks per second.
-import { SPELLS, SPELL_LIST, type Essence } from '../data/spells';
+import { SPELLS, LIBRARY_SPELLS, type Essence } from '../data/spells';
 import { resolveSpell, liteRiders, emptyRiders, ridersEmpty, type Resolved, type Riders } from '../data/fusion';
 import { DECAY, REACTIONS, STATUSES, type Status } from '../data/codex';
 import { ARTIFACTS, type ArtCtx, type DmgInfo } from '../data/artifacts';
@@ -39,6 +39,10 @@ const UNITS: Record<string, UnitDef> = {
   tesla: { hp: 22, atk: 0, interval: 3, ranged: true },
   stormspire: { hp: 40, atk: 0, interval: 2, ranged: true },
   clone: { hp: 30, atk: 0, interval: 99, ranged: true },
+  mimic: { hp: 40, atk: 5, interval: 3, ranged: false, taunt: true },
+  bookworm: { hp: 16, atk: 0, interval: 4, ranged: false },
+  author: { hp: 30, atk: 0, interval: 5, ranged: true },
+  thing: { hp: 90, atk: 0, interval: 6, ranged: false },
   golem: { hp: 45, atk: 4, interval: 3, ranged: false },
   seraph: { hp: 40, atk: 6, interval: 2.5, ranged: true },
 };
@@ -46,12 +50,13 @@ export const UNIT_TITLE: Record<string, string> = {
   imp: 'Imp', skeleton: 'Skeleton', treant: 'Treant', sapling: 'Sapling', rat: 'Plague Rat', salamander: 'Salamander', ball: 'Ball Lightning',
   decoy: 'Mirror Image', cherub: 'Cherub', pitlord: 'Pit Lord', frostlich: 'Frost Lich', worldroot: 'Worldroot',
   egg: 'Phoenix Egg', phoenix: 'Phoenix', snowman: 'Snowman', leech: 'Leech', hydra: 'Hydra', tesla: 'Tesla Coil', stormspire: 'Stormspire',
-  clone: 'Shadow Clone', golem: 'Golem', seraph: 'Seraph',
+  clone: 'Shadow Clone', golem: 'Golem', seraph: 'Seraph', mimic: 'Book Mimic', bookworm: 'Bookworm', author: 'The Author', thing: 'Thing Between the Shelves',
 };
 // the colour a unit's attacks read as when nothing tints it
 const UNIT_ESS: Record<string, Essence> = {
   salamander: 'fire', pitlord: 'fire', phoenix: 'fire', egg: 'fire', frostlich: 'frost', snowman: 'frost', rat: 'venom', leech: 'venom', hydra: 'venom',
   tesla: 'storm', stormspire: 'storm', ball: 'storm', clone: 'shadow', seraph: 'holy', cherub: 'holy',
+  mimic: 'stone', bookworm: 'venom', author: 'arcane', thing: 'shadow',
 };
 
 function zeroSt(): Record<Status, number> { return { burn: 0, chill: 0, wet: 0, poison: 0, oil: 0, charge: 0, hex: 0 }; }
@@ -111,7 +116,7 @@ export class Duel {
       wardLines: spec.wards.map(w => (w && w.cond && w.spell) ? (() => { const res = resolveSpell(w.spell); return { cond: w.cond, res, uses: res.uses === 0 ? Infinity : res.uses, cd: 0 }; })() : null),
       arts: spec.artifacts.filter(id => ARTIFACTS[id]).map(id => ({ id, st: {} })),
       lastCast: null, lastPower: 1, halfUsed: false, every8: 0, castCount: 0, freeNext: false, quickNext: false,
-      dealt: 0, healed: 0, loops: 0, shock: 0, divine: 0, nextPower: 1, thief: 0, flayer: 0, history: [],
+      dealt: 0, healed: 0, loops: 0, shock: 0, divine: 0, nextPower: 1, thief: 0, flayer: 0, history: [], erratum: 0, reversed: 0,
     };
     m.st.hex = spec.startHex || 0;
     return m;
@@ -242,6 +247,7 @@ export class Duel {
     if (m.congeal > 0) m.congeal -= dt;
     if (m.mirrorAll > 0) m.mirrorAll -= dt;
     if (m.divine > 0) m.divine -= dt;
+    if (m.reversed > 0) m.reversed -= dt;
     for (const w of m.wardLines) if (w && w.cd > 0) w.cd -= dt;
     m.auras = m.auras.filter(a => a.until > this.t);
     // Crystal Growth: a crystal that blocks one bolt grows every 8 s, up to 2
@@ -265,7 +271,11 @@ export class Duel {
     b.dotT += dt;
     if (b.dotT >= 1) {
       b.dotT -= 1;
-      if (b.st.burn > 0) this.damage(this.burnSource(b), b, b.st.burn * 0.8, { kind: 'dot', ess: 'fire', status: 'burn' });
+      if (b.st.burn > 0) {
+        const back = b.kind === 'mage' && (b as Mage).auras.find(a => a.id === 'backcandle' && a.until > this.t);
+        if (back) this.blamed(back.name, () => this.heal(b as Mage, b.st.burn * 0.8));
+        else this.damage(this.burnSource(b), b, b.st.burn * 0.8, { kind: 'dot', ess: 'fire', status: 'burn' });
+      }
       // Ratify: a mage turned plague rat sickens every second
       if (b.morph > 0 && b.morphKind === 'rat') this.applyStatus(b, 'poison', 1, this.burnSource(b));
       if (b.alive && b.st.poison > 0) this.damage(this.poisonSource(b), b, b.st.poison * (b.kind === 'mage' && (b as Mage).curses.some(c => c.id === 'wither') ? 0.85 : 0.55), { kind: 'dot', ess: 'venom', status: 'poison' });
@@ -309,6 +319,7 @@ export class Duel {
   readSpeed(m: Mage): number {
     let s = 1 / (1 + 0.1 * m.st.chill + m.readSlow);
     if (m.congeal > 0) s *= 0.7;
+    if (this.margin(m)) s *= 0.8;
     if (m.auras.some(a => a.id === 'haste' && a.until > this.t)) s *= 1.3;
     for (const a of m.arts) { const f = ARTIFACTS[a.id]?.hooks.readMult; if (f) s *= f(this.ctx(m), a.st); }
     return s;
@@ -341,8 +352,11 @@ export class Duel {
 
   castable(l: LineState) { return l.uses > 0 && !(l.blot > this.t); }
 
+  margin(m: Mage): Field | undefined { return this.fields.find(f => f.kind === 'margin' && f.on === m.side && f.owner !== m.side); }
+
   inkCost(m: Mage, res: Resolved): number {
     let c = res.ink;
+    if (this.margin(m)) c *= 1.5;
     for (const a of m.arts) { const f = ARTIFACTS[a.id]?.hooks.inkMult; if (f) c *= f(this.ctx(m), a.st, res); }
     if (m.freeNext) c = 0;
     return Math.round(c);
@@ -372,6 +386,8 @@ export class Duel {
       return;
     }
     m.ink -= cost;
+    const mg = this.margin(m);
+    if (mg && cost > 0) { const o = this.mage(mg.owner); o.ink = Math.min(o.maxInk, o.ink + cost / 3); this.ev({ type: 'arc', from: m.id, to: o.id, ess: 'shadow' }); }
     m.cursor = i; m.cur = L; m.phase = 'reading'; m.prog = 0; m.total = this.readTime(m, L.res);
     m.freeNext = false; m.quickNext = false;
     this.ev({ type: 'read', side: m.side, line: L.idx, dur: m.total, name: L.res.name, ess: L.res.primary });
@@ -414,6 +430,14 @@ export class Duel {
       this.wardRetort(foe, m);
       return;
     }
+    if (m.erratum > 0) {
+      m.erratum--;
+      const pool = LIBRARY_SPELLS.filter(s => s.form !== 'ward' && s.id !== 'echo' && s.id !== 'plagiarize');
+      const pick = pool[Math.floor(this.rng() * pool.length)];
+      this.ev({ type: 'fizzle', side: m.side, reason: 'Misprinted', name: L.res.name });
+      this.cast(m, resolveSpell({ uid: 0, base: pick.id, inf: [], tier: 0 }), { power: 1, line: L.idx, via: 'Erratum', echo: true });
+      return;
+    }
     if (m.steam) {
       m.steam = false;
       if (this.rng() < 0.5) { this.ev({ type: 'fizzle', side: m.side, reason: 'Lost in the steam', name: L.res.name }); return; }
@@ -428,6 +452,22 @@ export class Duel {
 
   onVictimRead(m: Mage) {
     for (const c of m.curses.slice()) {
+      if (c.id === 'drownedking') {
+        const owner = this.mage(c.owner);
+        this.blamed(c.name, () => {
+          this.ev({ type: 'cursePulse', side: m.side, key: c.key });
+          this.applyStatus(m, 'wet', 2, owner);
+          // the water they swallow is counted apart from their Wet, so reactions can't drain it
+          c.data.water = (c.data.water || 0) + 1;
+          if (m.alive && c.data.water >= 5) {
+            c.data.water = 0;
+            this.ev({ type: 'react', tgt: m.id, id: 'drowned', name: 'Drowned' });
+            this.ev({ type: 'shake', amt: 0.8 });
+            this.damage(owner, m, 25 * Math.min(1.5, c.power), { kind: 'curse', ess: 'frost' });
+          }
+        });
+        if (!m.alive || this.over()) return;
+      }
       if (c.id === 'tongues' || c.res.base.id === 'tongues') {
         const owner = this.mage(c.owner);
         this.ev({ type: 'cursePulse', side: m.side, key: c.key });
@@ -909,7 +949,7 @@ export class Duel {
     for (const a of owners.arts) { const f = ARTIFACTS[a.id]?.hooks.unitHp; if (f) hp *= f(this.ctx(owners), a.st, kind); }
     const row: 'front' | 'back' = d.ranged ? 'back' : 'front';
     // leeches and hydra heads latch onto the enemy mage, on the far side of the board
-    const latch = kind === 'leech' || kind === 'hydra';
+    const latch = kind === 'leech' || kind === 'hydra' || kind === 'bookworm';
     const pos = kind === 'ball' ? { x: (this.rng() - 0.5) * 3, z: (owner === 0 ? 1 : -1) * BOARD.backZ, slot: 99 }
       : latch ? { x: (this.rng() - 0.5) * 2.6, z: (owner === 0 ? -1 : 1) * (BOARD.mageZ - 0.9 - this.rng() * 0.5), slot: 99 }
       : this.slotFor(owner, row);
@@ -1025,6 +1065,53 @@ export class Duel {
       const d = this.damage(owner, foe, rate, { kind: 'summon', ess: 'venom', quiet: true });
       if (d > 0) this.heal(owner, d);
       if (!ridersEmpty(u.riders) && this.rng() < 0.25) this.applyRiders(owner, foe, { ...u.riders, heal: 0, drain: 0 }, u.power * 0.5, resolveSpell({ uid: 0, base: 'leech', inf: [], tier: 0 }), { attacker: u, kind: 'summon' });
+      return;
+    }
+    if (u.ukind === 'bookworm' || u.ukind === 'author' || u.ukind === 'thing') {
+      u.atkT -= dt / (1 + 0.08 * u.st.chill);
+      if (u.atkT > 0) return;
+      u.atkT = u.interval;
+      if (!foe.alive) return;
+      if (u.ukind === 'bookworm') {
+        // eats a use from a limited line, or smudges an endless one
+        const limited = foe.lines.filter(l => l.uses !== Infinity && l.uses > 0);
+        this.ev({ type: 'unitAtk', id: u.id, tgt: foe.id });
+        if (limited.length) {
+          const L = limited[Math.floor(this.rng() * limited.length)];
+          L.uses--;
+          this.ev({ type: 'react', tgt: foe.id, id: 'eaten', name: `${L.res.name} nibbled` });
+        } else {
+          const free = foe.lines.filter(l => !(l.blot > this.t) && l.uses > 0);
+          if (free.length) { const L = free[Math.floor(this.rng() * free.length)]; L.blot = this.t + 3; this.ev({ type: 'blot', side: foe.side, line: L.idx, dur: 3 }); }
+        }
+        this.heal(owner, 3 * Math.min(1.5, u.power));
+        if (!ridersEmpty(u.riders)) this.applyRiders(owner, foe, { ...u.riders, heal: 0, drain: 0 }, u.power * 0.5, resolveSpell({ uid: 0, base: 'bookworm', inf: [], tier: 0 }), { attacker: u, kind: 'summon' });
+        return;
+      }
+      if (u.ukind === 'author') {
+        const pool = LIBRARY_SPELLS.filter(s => s.form !== 'summon' && s.form !== 'ward' && s.id !== 'echo' && s.id !== 'wildmagic' && s.id !== 'martyrdom' && s.id !== 'plagiarize');
+        const pick = pool[Math.floor(this.rng() * pool.length)];
+        this.ev({ type: 'unitAtk', id: u.id, tgt: foe.id });
+        const p = 0.6 * Math.min(1.5, u.power);
+        this.at(0.25, () => { if (u.alive) this.cast(owner, resolveSpell({ uid: 0, base: pick.id, inf: [], tier: 0 }), { power: p, via: 'The Author', echo: true }); });
+        return;
+      }
+      // the Thing swallows an enemy summon whole, or bites the mage
+      const prey = this.unitsOf(foe.side);
+      if (prey.length) {
+        const e = prey.reduce((a, b) => (b.hp > a.hp ? b : a));
+        this.ev({ type: 'unitAtk', id: u.id, tgt: e.id });
+        this.at(0.25, () => {
+          if (!e.alive || !u.alive) return;
+          const hp = e.hp;
+          this.ev({ type: 'react', tgt: e.id, id: 'swallowed', name: 'Swallowed' });
+          this.damage(owner, e, hp + 1, { kind: 'summon', ess: 'shadow' });
+          u.maxHp += 10; u.hp = Math.min(u.maxHp, u.hp + Math.min(30, hp));
+        });
+      } else {
+        this.ev({ type: 'unitAtk', id: u.id, tgt: foe.id });
+        this.at(0.25, () => { if (u.alive) this.damage(owner, foe, 8 * Math.min(1.6, u.power), { kind: 'summon', ess: 'shadow' }); });
+      }
       return;
     }
     if (u.ukind === 'tesla' || u.ukind === 'stormspire') {
@@ -1150,6 +1237,7 @@ export class Duel {
         break;
       case 'sporebloom': this.makeField(m, foe.side, 'spores', res.name, res, power, 18 * durMult, 3, lite, res.primary, flags); break;
       case 'lightwell': this.makeField(m, m.side, 'lightwell', res.name, res, power, 15 * durMult, 3, lite, res.primary, flags); break;
+      case 'margin': this.makeField(m, foe.side, 'margin', res.name, res, power, 15 * durMult, 99, lite, res.primary, flags); break;
       case 'miasma': this.makeField(m, foe.side, 'miasma', res.name, res, power, 12 * durMult, 2, lite, res.primary, flags); break;
       case 'thunderhead': this.makeField(m, foe.side, 'thunder', res.name, res, power, 16 * durMult, 2, lite, res.primary, flags); break;
       case 'consecration': this.makeField(m, m.side, 'consecration', res.name, res, power, 12 * durMult, 1, lite, res.primary, flags); break;
@@ -1273,11 +1361,24 @@ export class Duel {
           case 'siphon': hurt(1); break;
           case 'unstable': hurt(1.5); break;
           case 'totaleclipse': hurt(1); break;
+          case 'finalchapter': hurt(0.5 + 0.12 * c.age); break;
           case 'haunt': {
             const d = this.damage(owner, m, 2 * c.power, { kind: 'curse', ess: 'shadow' });
             c.data.total = (c.data.total || 0) + d;
             break;
           }
+        }
+      }
+      if (c.id === 'unmaking' && !c.data.done && c.age >= 14) {
+        c.data.done = 1;
+        const endless = m.lines.filter(l => l.uses === Infinity && !(l.blot > this.t + 1000));
+        const pool = endless.length ? endless : m.lines.filter(l => l.uses > 0);
+        if (pool.length) {
+          const L = pool.reduce((a, b) => (b.res.ink > a.res.ink ? b : a));
+          if (endless.length) L.blot = this.t + 9999; else L.uses = 0;
+          this.ev({ type: 'blot', side: m.side, line: L.idx, dur: 9999 });
+          this.ev({ type: 'callout', side: owner.side, text: 'Unmade', sub: `${L.res.name} is erased from ${m.name}'s tome` });
+          this.ev({ type: 'shake', amt: 0.8 });
         }
       }
       if (c.id === 'haunt' && c.age >= 8 * c.res.riders.durMult) {
@@ -1347,6 +1448,7 @@ export class Duel {
     const data: Record<string, number> = {};
     if (id === 'duplicate') data.n = 4 + (res.inst.tier || 0);
     if (id === 'crystal') { data.t = 3; lite.chain = 0; lite.splash = 0; lite.flicker = 0; }
+    if (id === 'backcandle') this.at(0.05, () => this.applyStatus(m, 'burn', 3, null));
     m.auras.push({ key: this.nextId++, id, name: res.name, res, power, until: this.t + dur, riders: id === 'duplicate' || id === 'crystal' ? emptyRiders() : lite, data });
     this.ev({ type: 'aura', side: m.side, id, name: res.name, ess: res.primary });
     for (const k of res.riders.hatch) this.spawnMinion(m, k, 8, power);
@@ -1368,12 +1470,16 @@ export class Duel {
       const full = res.special === 'resonance';
       if (!prev || o.echo) { this.ev({ type: 'fizzle', side: m.side, reason: 'Nothing to echo', name: res.name }); }
       else this.at(0.3, () => this.cast(m, prev, { power: (full ? 1 : 0.8) * power * m.lastPower, via: full ? 'Resonance' : 'Echo', echo: true }));
+    } else if (res.base.id === 'ouroboros') {
+      let n = 0;
+      for (const l of m.lines) if (l.uses === 0 && l.res.base.id !== 'ouroboros') { l.uses = 1; n++; }
+      this.ev({ type: 'react', tgt: m.id, id: 'ouroboros', name: n ? `${n} line${n > 1 ? 's' : ''} rewritten` : 'Nothing to rewrite' });
     } else if (res.base.id === 'martyrdom') {
       this.damage(null, m, 10, { kind: 'self', ess: 'holy' });
       m.nextPower = Math.max(m.nextPower, 2);
     } else if (res.base.id === 'wildmagic') {
       if (!o.echo || this.rng() < 0.5) {
-        const pool = SPELL_LIST.filter(s => s.id !== 'wildmagic' && s.id !== 'echo' && s.id !== 'martyrdom');
+        const pool = LIBRARY_SPELLS.filter(s => s.id !== 'wildmagic' && s.id !== 'echo' && s.id !== 'martyrdom');
         const pick = pool[Math.floor(this.rng() * pool.length)];
         this.at(0.3, () => this.cast(m, resolveSpell({ uid: 0, base: pick.id, inf: [], tier: 0 }), { power: 0.7 * power, via: 'Wild Magic', echo: true }));
       }
@@ -1518,6 +1624,29 @@ export class Duel {
         this.ev({ type: 'react', tgt: tgt.id, id: 'transpose', name: 'Transposed' });
         break;
       }
+      case 'erratum': tgt.erratum += 1; this.ev({ type: 'react', tgt: tgt.id, id: 'erratum', name: 'Misprinted' }); break;
+      case 'reversegrammar': tgt.reversed = Math.max(tgt.reversed, 8 * durP); this.ev({ type: 'react', tgt: tgt.id, id: 'reversed', name: 'Reversed' }); break;
+      case 'palimpsest': {
+        if (tgt === m) break;
+        const n = tgt.lines.length;
+        const start = tgt.cur ? tgt.lines.indexOf(tgt.cur) + 1 : tgt.cursor;
+        let L: LineState | null = null;
+        for (let k = 0; k < n && !L; k++) { const c = tgt.lines[(start + k) % n]; if (c !== tgt.cur && this.castable(c)) L = c; }
+        if (!L) { this.ev({ type: 'fizzle', side: m.side, reason: 'Nothing to scrape', name: res.name }); break; }
+        L.blot = this.t + 10 * durP;
+        this.ev({ type: 'blot', side: tgt.side, line: L.idx, dur: 10 * durP });
+        const stolen = L.res;
+        this.at(0.3, () => this.cast(m, stolen, { power: 1 * Math.min(power, 1.5), via: 'Palimpsest', echo: true }));
+        break;
+      }
+      case 'anagram': {
+        const ls = tgt.lines;
+        for (let i = ls.length - 1; i > 0; i--) { const j = Math.floor(this.rng() * (i + 1)); [ls[i], ls[j]] = [ls[j], ls[i]]; }
+        if (tgt.phase === 'reading') { tgt.cur = null; tgt.prog = 0; }
+        tgt.phase = 'recover'; tgt.phaseT = 0.6; tgt.cursor = 0;
+        this.ev({ type: 'react', tgt: tgt.id, id: 'anagram', name: 'Anagram' });
+        break;
+      }
       case 'plagiarize': {
         const stolen = tgt.lastCast;
         if (stolen) this.at(0.3, () => this.cast(m, stolen, { power: 1 * power, via: 'Plagiarized', echo: true }));
@@ -1583,6 +1712,8 @@ export class Duel {
     if (tgt.kind === 'mage') {
       const m = tgt as Mage;
       if (m.divine > 0) { if (kind !== 'dot' || amt >= 1) this.ev({ type: 'wardUse', side: m.side, kind: 'divine' }); return 0; }
+      // Reverse Grammar: what they deal heals its target instead
+      if (src && src.reversed > 0 && src.side !== m.side && kind !== 'reversed') { this.heal(m, amt); return 0; }
       // Mark of the Hunter: summons hit the marked mage harder
       if (kind === 'summon' && src && m.curses.some(c => c.id === 'huntersmark' && c.owner === src.side)) amt *= 1.5;
       if (kind === 'spell' || kind === 'summon') for (const a of m.auras) if (a.id === 'stoneskin' && a.until > this.t) amt = Math.max(1, amt - 2 * a.power);
@@ -1623,6 +1754,11 @@ export class Duel {
     if (tgt.kind === 'unit') {
       const u = tgt as Unit;
       if (u.ukind === 'golem' && u.hp > 0 && kind !== 'dot') u.atk = Math.min(10, u.atk + 1);
+      if (u.ukind === 'mimic' && u.hp > 0 && kind === 'spell' && src && src.side !== u.side) {
+        u.hp = Math.min(u.maxHp, u.hp + 6);
+        const owner = this.mages[u.owner];
+        this.at(0.3, () => this.blamed(u.name, () => { if (u.alive && src.alive) { this.ev({ type: 'unitAtk', id: u.id, tgt: src.id }); this.damage(owner, src, 4 * Math.min(1.5, u.power), { kind: 'summon', ess: 'stone' }); } }));
+      }
       if (u.ukind === 'worldroot' && u.hp > 0) this.heal(this.mages[u.owner], amt * 0.5);
       if (u.split && u.hp > 0 && u.hp < u.maxHp / 2) {
         u.split = false;
@@ -1702,6 +1838,7 @@ export class Duel {
   }
 
   private healInner(m: Mage, amt: number, fromCurse: boolean): number {
+    if (m.reversed > 0) { this.damage(this.opp(m), m, amt, { kind: 'reversed', ess: 'arcane', label: 'Reverse Grammar' }); return 0; }
     for (const a of m.arts) { const f = ARTIFACTS[a.id]?.hooks.healMult; if (f) amt *= f(this.ctx(m), a.st); }
     const before = m.hp;
     m.hp = Math.min(m.maxHp, m.hp + amt);

@@ -9,7 +9,7 @@ import { forgetLayout, setArrival } from './libraryUI';
 export const titleScreen: Screen = {
   mount() {
     app.library.titleSpin = true;
-    app.library.layout(0, 0);
+    app.library.layoutAll(0, 0);
     forgetLayout();
     app.engine.setView(app.library);
     const r = run || loadRun();

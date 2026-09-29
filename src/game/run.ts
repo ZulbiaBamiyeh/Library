@@ -1,5 +1,5 @@
 // Run state: everything a run carries between rounds, saved to localStorage.
-import { SPELLS, SPELL_LIST } from '../data/spells';
+import { SPELLS, LIBRARY_SPELLS } from '../data/spells';
 import type { SpellInst } from '../data/fusion';
 import { ARTIFACTS, ARTIFACT_LIST, REAGENT_LIST, RARITY } from '../data/artifacts';
 import type { TomeSpec, WardCond } from '../sim/types';
@@ -32,7 +32,8 @@ export interface Run {
   staff: string | null;
   trinkets: (string | null)[];
   stash: string[];
-  lib: { borrows: number; candles: number; peeked: Record<number, boolean>; taken: Record<number, boolean>; forbidden: number };
+  // taken and peeked are keyed by book index, plus 100000 per level below the Reading Room
+  lib: { borrows: number; candles: number; peeked: Record<number, boolean>; taken: Record<number, boolean>; forbidden: number; depth?: number };
   shop: { stock: ShopItem[]; rerolls: number; visited: boolean };
   bindings: number;
   desk: { base: SpellInst | null; inf: SpellInst | null };
@@ -196,6 +197,6 @@ export function pickOpponent(r: Run): TomeSpec {
 }
 
 export function libraryPool(school: string, size: number, chained: boolean): string[] {
-  const list = SPELL_LIST.filter(s => chained ? s.rarity >= 1 : s.school === school);
+  const list = LIBRARY_SPELLS.filter(s => chained ? s.rarity >= 1 : s.school === school);
   return list.map(s => s.id).filter(id => SPELLS[id] && (size >= 1 || SPELLS[id].rarity < 2 || chained));
 }

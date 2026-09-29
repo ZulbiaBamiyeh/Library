@@ -136,6 +136,8 @@ export interface Mage extends Body {
   thief: number; // Spellthief charges
   flayer: number; // Mindflayer: backfires that also drain ink
   history: { res: Resolved; power: number }[];
+  erratum: number; // Erratum: misprinted spells waiting
+  reversed: number; // Reverse Grammar time left
 }
 
 export interface Unit extends Body {

@@ -28,15 +28,34 @@ Other dev tools:
 A run is a series of rounds and ends at 10 wins or 4 losses. You start with a single Firebolt and a four-line tome; the tome gains a line at rounds 2, 4, 6, 8 and 10, and ward lines (a spell that fires on a condition) open at rounds 3, 6 and 9. Each round:
 
 1. **The Library** (first person). Spine colour tells the school; thickness hints at rarity; chained books are forbidden (2 Hex at your next duel); glowing books hold a Codex hint. Spend candles to peek, borrow three books. Thick and chained books can hold reagents. Borrowing a spell you own upgrades it to Silver, then Gold.
+
+   **The depths.** The library is one building. A wide stairwell in the north aisle drops through seven floors below the Reading Room: the Lower Stacks, the Ossuary Shelves, the Root Cellar, the Drowned Archive, the Inverse Stacks, the Stopped Clocks and finally the Unwritten. Walk down the spiral stair that clings to the shaft wall, or jump over the rail and fall through as many floors as you like; nearby floors are drawn and fog swallows the rest. Each floor is darker and stranger, the shelves stop being sorted by school, rare spells get commoner, and fourteen **ancient spells** turn up that exist nowhere else. Leaving the library for the shop or the desk brings you back up to the Reading Room.
+
+   | Ancient spell | Found from | Effect |
+   |---|---|---|
+   | Erratum | Lower Stacks | Their next spell is misprinted: a random spell is cast in its place, as theirs |
+   | Candle That Burns Backwards | Lower Stacks | Burning on you heals you instead |
+   | Book Mimic | Lower Stacks | A biting book that swallows spells aimed at you and bites the caster back |
+   | Palimpsest | Ossuary Shelves | Scrape their next line off their page and cast it as yours |
+   | The Hungry Margin | Ossuary Shelves | They read slower and pay extra ink, which you drink |
+   | Tongue of the Drowned King | Drowned Archive | Every fifth line they read, they drown for 25 |
+   | Bookworm | Root Cellar | Eats uses out of their tome |
+   | Reverse Grammar | Drowned Archive | For 8 s their damage heals you and their healing hurts them |
+   | Anagram | Inverse Stacks | Shuffles their whole tome and makes them start again |
+   | Sigil of Unmaking | Inverse Stacks | After 14 s, erases their costliest endless line for the rest of the duel |
+   | The Author | Inverse Stacks | A scribe that casts a random spell for you every 5 s |
+   | Final Chapter | The Unwritten | Damage every second, growing without limit until cleansed |
+   | Thing Between the Shelves | The Unwritten | Swallows enemy summons whole |
+   | Ouroboros Verse | Stopped Clocks | Every spent line in your tome gets a use back |
 2. **Curios & Oddments**, through the lit door in the east wall. Madame Verdigris sells one staff and four trinkets each round, plus two reagents. You hold one staff and 2–4 trinkets (more slots at rounds 3 and 6), with a small stash. Sell for half price, reroll the counter for a fee.
 3. **The Binding Desk.** One screen: your tome on the left, the binding altar in the middle, the satchel on the right. Drag a spell onto Base (what it *is*) and another onto Infusion (what it's *made of*); the infusion is used up. With only one slot filled, the altar lists what every spell you own would make (undiscovered compounds and legendaries show as ???). Two bindings a round (three from round 6). Reagents apply to the base. Drag works with mouse and touch; tapping a spell and then a slot works too.
 4. **The Duel.** Walk through the glowing arch in the library's west wall (or use the Duelling Ring button, or the desk's duel button). A deterministic simulation plays out on a top-down board: projectiles, summons, fields, curse sigils, reactions and legendary callouts. Pause, ½×, 1×, 2×, 4× or skip. The result sheet breaks down damage dealt, damage taken and healing by source (spell, summon, status, curse, field, reaction or curio), for you and for your opponent.
 
-Controls in the library: drag to look, WASD or arrows to walk (a virtual stick on touch), click a book to open it. Walk into the lit doorway in the east wall to enter the shop, or through the arch in the west wall to duel. Space pauses a duel.
+Controls in the library: on a computer, click once to capture the mouse and move it to look (Esc frees it); WASD or arrows to walk, Shift to run, Space to jump, click to open the book under the crosshair. On touch, drag to look and use the virtual stick to walk. Walk into the lit doorway in the east wall to enter the shop, or through the arch in the west wall to duel. Space pauses a duel.
 
 ## Spells and combos
 
-There are 86 spells across eight schools and nine forms (bolt, burst, summon, field, curse, aura, blessing, hex, ward). When you bind two spells, three layers of combination can apply:
+There are 86 spells on the ordinary shelves (plus the 14 ancient ones in the depths) across eight schools and nine forms (bolt, burst, summon, field, curse, aura, blessing, hex, ward). When you bind two spells, three layers of combination can apply:
 
 - **Reactions** (11) happen on the board when statuses meet, whoever applied them. Examples: Wet + Chill freezes, Oil + Burning blazes, fire on a frozen target cracks the ice (Thermal Shock), and 10 Charge overloads.
 - **Compounds** (28) happen when a spell carries two essences. Examples: Magma (fire + stone) hits heavy and scorches every summon; Obsidian (stone + shadow) strikes again 2 s later; Void (shadow + arcane) strips a ward or aura; Prism (holy + arcane) splits the hit across every other enemy.

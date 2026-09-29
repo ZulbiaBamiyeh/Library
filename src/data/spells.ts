@@ -73,8 +73,10 @@ export interface SpellDef {
   trait: Trait; // what it brings as an infusion
   unit?: string; // summon kind (also used by the hatch trait)
   text: string;
+  depth?: number; // ancient spells: only found this many levels down in the library, or deeper
 }
 
+const D = (depth: number, s: SpellDef): SpellDef => ({ ...s, depth });
 const S = (
   id: string, name: string, school: Essence, essence: Essence | null, form: Form, uses: number,
   ink: number, heft: number, rarity: 0 | 1 | 2, trait: Trait, text: string, unit?: string,
@@ -192,7 +194,31 @@ export const SPELL_LIST: SpellDef[] = [
   S('boulder', 'Boulder', 'stone', 'stone', 'bolt', 2, 16, 1.2, 1, 'heavy', '22 damage, a heavy hit that knocks their reading back 1 s'),
   S('crystal', 'Crystal Growth', 'stone', 'stone', 'aura', 1, 16, 0.4, 1, 'guard', 'Every 8 s a crystal grows that blocks one bolt (up to 2)'),
   S('petrify', 'Petrify', 'stone', 'stone', 'hex', 1, 20, 0.5, 2, 'heavy', 'Turns them to stone for 2.5 s; for 6 s heavy hits against them deal triple'),
+
+  // ---------- the depths: ancient spells found only below the Reading Room ----------
+  // The Lower Stacks
+  D(1, S('erratum', 'Erratum', 'arcane', 'arcane', 'hex', 2, 12, 0.3, 2, 'quick', 'Their next spell is misprinted: a random spell from the library is cast in its place, as theirs')),
+  D(1, S('backcandle', 'Candle That Burns Backwards', 'fire', 'fire', 'aura', 1, 14, 0.4, 2, 'mend', 'Burning on you heals you instead of hurting. You catch 3 Burning')),
+  D(1, S('mimic', 'Book Mimic', 'stone', 'stone', 'summon', 1, 20, 0.6, 2, 'guard', 'A hungry book with 40 health that draws bolts; every spell it swallows heals it 6 and it bites the caster back', 'mimic')),
+  // The Ossuary Shelves
+  D(2, S('palimpsest', 'Palimpsest', 'shadow', 'shadow', 'hex', 2, 16, 0.4, 2, 'echo', 'Scrapes their next line off their page and reads it as yours; they lose that line for 10 s')),
+  D(2, S('margin', 'The Hungry Margin', 'shadow', 'shadow', 'field', 1, 16, 0.5, 2, 'linger', 'For 15 s they read 20% slower and their spells cost 50% more ink, which you drink')),
+  // The Root Cellar
+  D(4, S('drownedking', 'Tongue of the Drowned King', 'frost', 'frost', 'curse', 1, 18, 0.5, 2, 'wet', 'Every line they read pours 2 Wet into them; on every fifth line they drown for 25 damage')),
+  D(3, S('bookworm', 'Bookworm', 'venom', 'venom', 'summon', 1, 18, 0.5, 2, 'afflict', 'Burrows into their tome: every 4 s it eats a use from one of their lines, or smudges an endless one, and feeds you 3', 'bookworm')),
+  D(4, S('reversegrammar', 'Reverse Grammar', 'arcane', 'arcane', 'hex', 1, 20, 0.5, 2, 'daze', 'For 8 s the damage they deal heals you, and any healing they receive hurts them')),
+  // The Drowned Archive, then the Inverse Stacks
+  D(5, S('anagram', 'Anagram', 'arcane', 'arcane', 'hex', 1, 18, 0.5, 2, 'chain', 'Every line of their tome is shuffled; whatever they were reading is lost and they start again from the top')),
+  D(5, S('unmaking', 'Sigil of Unmaking', 'shadow', 'shadow', 'curse', 1, 22, 0.6, 2, 'afflict', 'After 14 s on them, their costliest endless line is erased for the rest of the duel')),
+  D(5, S('author', 'The Author', 'arcane', 'arcane', 'summon', 1, 26, 0.8, 2, 'echo', 'A hooded scribe that writes and casts a random spell from the library as yours every 5 s, at 60% power', 'author')),
+  // The Stopped Clocks, then the Unwritten
+  D(7, S('finalchapter', 'Final Chapter', 'shadow', 'shadow', 'curse', 1, 24, 0.6, 2, 'linger', 'They begin to end: damage every second, growing without limit until it is cleansed')),
+  D(7, S('thing', 'Thing Between the Shelves', 'shadow', 'shadow', 'summon', 1, 28, 0.9, 2, 'heavy', '90 health. Every 6 s it swallows an enemy summon whole and grows; with nothing to eat, it bites the mage for 8', 'thing')),
+  D(6, S('ouroboros', 'Ouroboros Verse', 'arcane', 'arcane', 'blessing', 1, 20, 0.6, 2, 'echo', 'Every spent line in your tome is written back with one use')),
 ];
+
+// Spells that live on the ordinary shelves (ancient ones only turn up in the depths)
+export const LIBRARY_SPELLS: SpellDef[] = SPELL_LIST.filter(s => !s.depth);
 
 export const SPELLS: Record<string, SpellDef> = {};
 for (const s of SPELL_LIST) SPELLS[s.id] = s;

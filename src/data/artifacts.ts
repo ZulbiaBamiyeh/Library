@@ -1,7 +1,7 @@
 // Curios sold in the shop beside the library: one staff and a few trinkets.
 // Each artifact is data plus a handful of hooks the simulation calls. Plain TypeScript, no rendering.
 import type { Essence } from './spells';
-import { SPELL_LIST } from './spells';
+import { LIBRARY_SPELLS } from './spells';
 import type { Resolved } from './fusion';
 import { resolveSpell } from './fusion';
 import type { Status } from './codex';
@@ -333,7 +333,7 @@ export const ARTIFACT_LIST: ArtifactDef[] = [
   A('unwritten', 'The Unwritten Page', 'trinket', 3, 'Each time your tome loops, cast a random spell from the library.', 'Blank until the moment you need it. Then it is something else.',
     { kind: 'page', color: '#f0ead8', glow: '#f6e7a8' },
     { loop: c => {
-      const pool = SPELL_LIST.filter(s => s.form !== 'ward' && s.id !== 'echo' && s.id !== 'plagiarize');
+      const pool = LIBRARY_SPELLS.filter(s => s.form !== 'ward' && s.id !== 'echo' && s.id !== 'plagiarize');
       const d = pool[Math.floor(c.duel.rng() * pool.length)];
       flash(c, 'unwritten', d.name);
       c.duel.at(0.5, () => c.duel.cast(c.me, baseSpell(d.id), { power: 1, via: 'Unwritten Page', echo: true }));

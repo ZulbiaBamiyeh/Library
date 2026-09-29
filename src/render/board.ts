@@ -327,7 +327,7 @@ export class Board implements View {
     group.scale.setScalar(0.01);
     this.scene.add(group);
     const height = 1.2 * ({ imp: 1.0, pitlord: 1.9, cherub: 1.1, skeleton: 1.35, frostlich: 1.8, treant: 1.8, worldroot: 2.5, sapling: 1.0, rat: 0.5, salamander: 0.5, ball: 1.2, decoy: 1.8,
-      egg: 0.7, phoenix: 1.4, snowman: 1.6, leech: 0.5, hydra: 0.9, tesla: 1.7, stormspire: 2.4, clone: 1.8, golem: 1.9, seraph: 2.0 } as Record<string, number>)[u.kind] || 1;
+      egg: 0.7, phoenix: 1.4, snowman: 1.6, leech: 0.5, hydra: 0.9, tesla: 1.7, stormspire: 2.4, clone: 1.8, golem: 1.9, seraph: 2.0, mimic: 0.6, bookworm: 0.4, author: 1.8, thing: 2.6 } as Record<string, number>)[u.kind] || 1;
     const v: UnitView = { id: u.id, side: u.side, kind: u.kind, group, model, target: new THREE.Vector3(u.x, 0, u.z), height, alive: true, dying: 0, lunge: 0, lungeDir: new THREE.Vector3(), spawnT: 0, flash: 0, ice: null, morph: null, snap: u, hover: (model.userData.hover as number) || 0, phase: Math.random() * 6 };
     this.units.set(u.id, v);
     const p = new THREE.Vector3(u.x, 0.05, u.z);

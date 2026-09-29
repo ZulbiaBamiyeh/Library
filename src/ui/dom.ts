@@ -19,6 +19,7 @@ export function toast(msg: string, gold = false) {
 
 let modalClose: (() => void) | null = null;
 export function showModal(html: string, onClose?: () => void) {
+  if (document.pointerLockElement) document.exitPointerLock(); // give the mouse back for the dialog
   const m = $('#modal');
   m.innerHTML = html;
   m.classList.remove('hidden');

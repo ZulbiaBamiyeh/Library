@@ -1,7 +1,7 @@
 // How a fresh player fares against round-1 and round-2 ghosts: Firebolt plus three borrowed spells.
 import { runDuel } from '../src/sim/duel';
 import { ARCHETYPES, makeBot } from '../src/sim/bots';
-import { SPELL_LIST } from '../src/data/spells';
+import { LIBRARY_SPELLS as SPELL_LIST } from '../src/data/spells';
 import { mulberry32 } from '../src/sim/rng';
 import { hpForRound, inkForRound } from '../src/game/progression';
 import type { TomeSpec } from '../src/sim/types';

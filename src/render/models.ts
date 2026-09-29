@@ -780,6 +780,78 @@ export function makeUnit(kind: string, tint: string | null): THREE.Group {
       g.userData.hover = 0.35;
       break;
     }
+    case 'mimic': {
+      // a heavy book that has learned to bite
+      const leather = std('#5a2418', { roughness: 0.7 });
+      const pages = std('#e8dcc0', { roughness: 0.9 });
+      const lower = mesh(new THREE.BoxGeometry(0.8, 0.12, 0.6), leather); lower.position.y = 0.1; add(lower);
+      const lp = mesh(new THREE.BoxGeometry(0.74, 0.1, 0.54), pages); lp.position.set(0, 0.2, 0); add(lp);
+      const lid = new THREE.Group(); lid.position.set(0, 0.25, -0.3); lid.rotation.x = -0.75; g.add(lid);
+      const upper = mesh(new THREE.BoxGeometry(0.8, 0.12, 0.6), leather); upper.position.set(0, 0.06, 0.3); lid.add(upper);
+      const up = mesh(new THREE.BoxGeometry(0.74, 0.08, 0.54), pages); up.position.set(0, -0.03, 0.3); lid.add(up);
+      const tooth = std('#f4efe0', { roughness: 0.4 });
+      for (let i = 0; i < 7; i++) {
+        const x = -0.3 + i * 0.1;
+        const t1 = mesh(new THREE.ConeGeometry(0.035, 0.12, 5), tooth); t1.position.set(x, 0.3, 0.26); add(t1);
+        const t2 = mesh(new THREE.ConeGeometry(0.035, 0.12, 5), tooth); t2.rotation.x = Math.PI; t2.position.set(x + 0.05, -0.1, 0.56); lid.add(t2);
+      }
+      const tongue = mesh(new THREE.SphereGeometry(0.14, 10, 8), std('#b03040', { roughness: 0.4 })); tongue.scale.set(1, 0.3, 1.4); tongue.position.set(0, 0.26, 0.08); add(tongue);
+      eye(accent || '#ffd040', -0.16, 0.34, 0.2, 0.04); eye(accent || '#ffd040', 0.16, 0.34, 0.2, 0.04);
+      const clasp = mesh(new THREE.BoxGeometry(0.1, 0.16, 0.04), metal('#b08a3a')); clasp.position.set(0, 0.12, 0.31); add(clasp);
+      g.userData.hover = 0.05;
+      break;
+    }
+    case 'bookworm': {
+      const skin = std('#c8b890', { roughness: 0.6 });
+      for (let i = 0; i < 7; i++) {
+        const s = mesh(new THREE.SphereGeometry(0.1 - i * 0.006, 10, 8), skin);
+        s.position.set(Math.sin(i * 0.9) * 0.08, 0.1 + Math.abs(Math.sin(i * 0.8)) * 0.06, -i * 0.12); add(s);
+      }
+      const head = mesh(new THREE.SphereGeometry(0.12, 12, 10), skin); head.position.set(0, 0.16, 0.12); add(head);
+      // tiny spectacles
+      const wire = metal('#c9a13b', 0.3);
+      for (const s of [-1, 1]) { const lens = mesh(new THREE.TorusGeometry(0.035, 0.008, 6, 14), wire); lens.position.set(s * 0.05, 0.2, 0.225); add(lens); }
+      eye(accent || '#94e36a', -0.05, 0.2, 0.22, 0.015); eye(accent || '#94e36a', 0.05, 0.2, 0.22, 0.015);
+      // a scrap of page in its mouth
+      const scrap = mesh(new THREE.PlaneGeometry(0.14, 0.1), std('#efe6cc', { side: THREE.DoubleSide })); scrap.position.set(0.04, 0.1, 0.26); scrap.rotation.set(0.3, 0.4, 0.2); add(scrap);
+      break;
+    }
+    case 'author': {
+      const robe = std('#1e1a2e', { roughness: 0.9 });
+      add(lathe([[0.001, 0], [0.42, 0], [0.34, 0.45], [0.24, 1.0], [0.16, 1.25], [0.001, 1.3]], robe, 16));
+      const hood = mesh(new THREE.SphereGeometry(0.22, 14, 12, 0, Math.PI * 2, 0, Math.PI * 0.62), robe); hood.position.y = 1.36; add(hood);
+      const face = mesh(new THREE.SphereGeometry(0.15, 12, 10), new THREE.MeshBasicMaterial({ color: '#000000' })); face.position.set(0, 1.33, 0.06); add(face);
+      eye(accent || '#c59bff', -0.05, 1.36, 0.19, 0.022); eye(accent || '#c59bff', 0.05, 1.36, 0.19, 0.022);
+      // a quill taller than it is
+      const quill = mesh(new THREE.ConeGeometry(0.06, 1.5, 8), std('#e8e4f0', { roughness: 0.6 })); quill.position.set(0.38, 1.1, 0.15); quill.rotation.z = -0.25; add(quill);
+      const nib = mesh(new THREE.ConeGeometry(0.02, 0.12, 6), glowMat('#c59bff', 4)); nib.rotation.z = Math.PI - 0.25; nib.position.set(0.2, 0.33, 0.15); add(nib);
+      // loose pages orbiting it
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2;
+        const pg = mesh(new THREE.PlaneGeometry(0.16, 0.2), new THREE.MeshStandardMaterial({ color: '#f4efe0', emissive: new THREE.Color('#5a4a7a'), emissiveIntensity: 0.4, side: THREE.DoubleSide }));
+        pg.position.set(Math.cos(a) * 0.6, 0.6 + (i % 3) * 0.3, Math.sin(a) * 0.6); pg.rotation.set(0.3, a, 0.2); add(pg);
+      }
+      add(at(glowSprite('#8a5acf', 1.6, 0.35), new THREE.Vector3(0, 0.9, 0)));
+      g.userData.hover = 0.15;
+      break;
+    }
+    case 'thing': {
+      // something that lives between the shelves: tall, dark, too many eyes
+      const dark = new THREE.MeshStandardMaterial({ color: '#08060c', roughness: 0.4, metalness: 0.2, emissive: new THREE.Color('#10081a') });
+      const body = lathe([[0.001, 0], [0.55, 0.05], [0.5, 0.6], [0.38, 1.3], [0.42, 1.8], [0.2, 2.2], [0.001, 2.3]], dark, 14);
+      add(body);
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        const arm = mesh(new THREE.ConeGeometry(0.06, 1.3, 6), dark); arm.position.set(Math.cos(a) * 0.45, 1.2, Math.sin(a) * 0.45); arm.rotation.set(Math.sin(a) * 1.1, 0, -Math.cos(a) * 1.1); add(arm);
+      }
+      for (let i = 0; i < 9; i++) {
+        const y = 0.9 + (i % 5) * 0.28, a = i * 0.9 - 0.9;
+        const ec = accent || '#f2efe8';
+        const e = mesh(new THREE.SphereGeometry(0.035 + (i % 3) * 0.015, 8, 6), glowMat(ec, 3)); e.position.set(Math.sin(a) * 0.4, y, Math.cos(a) * 0.4); add(e);
+      }
+      add(at(glowSprite('#3a1a5a', 2.8, 0.5), new THREE.Vector3(0, 1.1, 0)));
+      break;
+    }
     default:
       add(mesh(new THREE.SphereGeometry(0.3, 12, 10), std('#888888'), 0, 0.3, 0));
   }

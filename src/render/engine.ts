@@ -114,6 +114,9 @@ export class Engine {
   frame(dt: number, time: number) {
     if (!this.view) return;
     this.view.update(dt, time);
+    // views may change their exposure and vignette as you move (the library darkens as you go down)
+    if (this.view.exposure !== undefined) this.renderer.toneMappingExposure = this.view.exposure;
+    if (this.view.vignette !== undefined) this.final.uniforms.uVignette.value = this.view.vignette;
     this.flash.w = Math.max(0, this.flash.w - dt * 2.2);
     this.aberr = Math.max(0, this.aberr - dt * 3);
     this.final.uniforms.uTime.value = time;
