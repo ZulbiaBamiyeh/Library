@@ -66,7 +66,7 @@ function inst(desc: string, round: number, tier: number): SpellInst {
 export function makeBot(round: number, seed: number, archIdx?: number): TomeSpec {
   const rng = mulberry32(seed);
   const arch = archIdx !== undefined ? ARCHETYPES[archIdx % ARCHETYPES.length] : pick(rng, ARCHETYPES);
-  const n = linesForRound(round) - (round <= 2 ? 1 : 0);
+  const n = Math.min(linesForRound(round), round + 2);
   let eligible = arch.lines.filter(([, r]) => r <= round);
   while (eligible.length > n) {
     // drop the most recently unlocked entry first

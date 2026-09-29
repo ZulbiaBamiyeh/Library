@@ -85,7 +85,7 @@ export const SPELL_LIST: SpellDef[] = [
   S('firebolt', 'Firebolt', 'fire', 'fire', 'bolt', 0, 10, 0.2, 0, 'force', '6 damage, 2 Burning'),
   S('fireball', 'Fireball', 'fire', 'fire', 'burst', 2, 22, 0.8, 1, 'splash', '10 damage to the enemy and each of their summons; 2 Burning each'),
   S('oilflask', 'Oil Flask', 'fire', 'fire', 'field', 3, 8, 0, 0, 'oil', '3 Oil on the enemy and their summons'),
-  S('kindle', 'Kindle', 'fire', 'fire', 'aura', 1, 16, 0.4, 1, 'empower', 'Your spells deal +1 damage for every 2 Burning stacks on the target'),
+  S('kindle', 'Kindle', 'fire', 'fire', 'aura', 1, 16, 0.4, 1, 'empower', 'Your spells deal +2 damage for every 5 Burning stacks on the target'),
   S('salamander', 'Salamander', 'fire', 'fire', 'summon', 1, 22, 0.6, 2, 'hatch', 'Eats Burning off you and spits it at the enemy', 'salamander'),
   S('immolate', 'Immolate', 'fire', 'fire', 'curse', 1, 18, 0.5, 2, 'afflict', "Their Burning can't fall below 2 while the curse holds"),
 
@@ -93,7 +93,7 @@ export const SPELL_LIST: SpellDef[] = [
   S('frostshard', 'Frost Shard', 'frost', 'frost', 'bolt', 0, 9, 0.1, 0, 'force', '7 damage, +2 per Chill already on the target; 2 Chill'),
   S('raincloud', 'Rain Cloud', 'frost', 'frost', 'field', 3, 10, 0.2, 0, 'wet', '4 Wet on the enemy side'),
   S('blizzard', 'Blizzard', 'frost', 'frost', 'field', 1, 26, 0.8, 2, 'linger', 'For 10 s, everything on their side gains 1 Chill and takes damage every second'),
-  S('frostarmour', 'Frost Armour', 'frost', 'frost', 'aura', 1, 16, 0.3, 1, 'guard', 'Anything that hits you gains 1 Chill and takes 2 damage'),
+  S('frostarmour', 'Frost Armour', 'frost', 'frost', 'aura', 1, 16, 0.3, 1, 'guard', 'Anything that hits you gains 1 Chill and takes 3 damage'),
   S('icewall', 'Ice Wall', 'frost', 'frost', 'ward', 2, 14, 0.2, 1, 'guard', 'Blocks the next two bolts'),
   S('deepfreeze', 'Deep Freeze', 'frost', 'frost', 'hex', 1, 20, 0.5, 2, 'daze', '8 damage. Freezes a target with 3+ Chill for 4 s; otherwise adds 3 Chill'),
 
@@ -126,8 +126,8 @@ export const SPELL_LIST: SpellDef[] = [
   S('mend', 'Mend', 'holy', 'holy', 'blessing', 3, 14, 0.2, 0, 'mend', 'Heal 8 and cleanse the newest curse, or 2 status stacks'),
   S('sanctuary', 'Sanctuary', 'holy', 'holy', 'ward', 1, 16, 0.3, 1, 'guard', "For 4 s you can't be targeted; enemy bolts fizzle"),
   S('consecration', 'Consecration', 'holy', 'holy', 'field', 1, 22, 0.6, 1, 'mend', 'Heals you 1 per second for 12 s; enemy summons burn in its light'),
-  S('retribution', 'Retribution', 'holy', 'holy', 'aura', 1, 18, 0.4, 2, 'empower', 'Whenever you are healed, the enemy takes 40% as much'),
-  S('guardianangel', 'Guardian Angel', 'holy', 'holy', 'ward', 1, 20, 0.4, 2, 'guard', 'The first time you would die, heal to 25% instead'),
+  S('retribution', 'Retribution', 'holy', 'holy', 'aura', 1, 18, 0.4, 2, 'empower', 'Whenever you are healed, the enemy takes 30% as much'),
+  S('guardianangel', 'Guardian Angel', 'holy', 'holy', 'ward', 1, 20, 0.4, 2, 'guard', 'The first time you would die, heal to 20% instead'),
 
   // Arcane (violet spines)
   S('echo', 'Echo', 'arcane', 'arcane', 'blessing', 0, 10, 0.2, 1, 'echo', 'Recast your previous spell at 80% power'),

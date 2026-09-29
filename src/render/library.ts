@@ -278,7 +278,16 @@ export class Library implements View {
   // true when the reader walks into the shop doorway
   atDoor() { return this.pos.x > R - 0.6 && Math.abs(this.pos.z) < 1.3; }
 
+  // Try the exact point first, then a few nearby points, so clicks in the gap above a row still find a book.
   pick(clientX: number, clientY: number): Pick {
+    for (const [dx, dy] of [[0, 0], [0, 8], [0, -8], [6, 0], [-6, 0], [0, 16]]) {
+      const p = this.pickAt(clientX + dx, clientY + dy);
+      if (p) return p;
+    }
+    return null;
+  }
+
+  pickAt(clientX: number, clientY: number): Pick {
     const v = new THREE.Vector2((clientX / window.innerWidth) * 2 - 1, -(clientY / window.innerHeight) * 2 + 1);
     this.raycaster.setFromCamera(v, this.camera);
     this.raycaster.far = 7;

@@ -608,7 +608,7 @@ export class Duel {
     // Frost Armour: whoever hits you gains Chill
     if (to.kind === 'mage' && foeSide && !o.riderOnly) {
       const tm = to as Mage;
-      for (const a of tm.auras) if (a.id === 'frostarmour' && a.until > this.t) { const att = o.attacker || m; this.applyStatus(att, 'chill', 1, tm); this.damage(tm, att, 2 * a.power, { kind: 'spell', ess: 'frost', quiet: true }); }
+      for (const a of tm.auras) if (a.id === 'frostarmour' && a.until > this.t) { const att = o.attacker || m; this.applyStatus(att, 'chill', 1, tm); this.damage(tm, att, 3 * a.power, { kind: 'spell', ess: 'frost', quiet: true }); }
     }
     // fused auras put their riders on every hit you make
     if (foeSide && !o.riderOnly) for (const a of m.auras) if (a.until > this.t && !ridersEmpty(a.riders)) this.applyRiders(m, to, a.riders, a.power, a.res, { noSplash: true });
@@ -876,7 +876,7 @@ export class Duel {
     const foeSide = (1 - f.owner) as Side;
     const res = f.res || resolveSpell({ uid: 0, base: 'miasma', inf: [], tier: 0 });
     switch (f.kind) {
-      case 'blizzard': for (const b of on) { this.applyStatus(b, 'chill', 1, owner); this.damage(owner, b, (b.kind === 'unit' ? 2 : 1.5) * f.power, { kind: 'field', ess: 'frost', quiet: true }); } break;
+      case 'blizzard': for (const b of on) { this.applyStatus(b, 'chill', 1, owner); this.damage(owner, b, (b.kind === 'unit' ? 2.5 : 2) * f.power, { kind: 'field', ess: 'frost', quiet: true }); } break;
       case 'miasma': case 'smog': for (const b of on) this.applyStatus(b, 'poison', 1, owner); break;
       case 'thunder': {
         if (!on.length) break;
@@ -1160,7 +1160,7 @@ export class Duel {
     const kind = info.kind;
     if (src && src.side !== tgt.side) {
       if (kind === 'spell' || kind === 'summon') {
-        for (const a of src.auras) if (a.id === 'kindle' && a.until > this.t && kind === 'spell') amt += tgt.st.burn * 0.5 * a.power;
+        for (const a of src.auras) if (a.id === 'kindle' && a.until > this.t && kind === 'spell') amt += tgt.st.burn * 0.4 * a.power;
       }
       for (const a of src.arts) { const f = ARTIFACTS[a.id]?.hooks.outDmg; if (f) amt = f(this.ctx(src), a.st, tgt, amt, info); }
     }
@@ -1201,7 +1201,7 @@ export class Duel {
     if (tgt.kind === 'mage') {
       const m = tgt as Mage;
       if (m.angel) {
-        m.angel = false; m.hp = m.maxHp * 0.25;
+        m.angel = false; m.hp = m.maxHp * 0.2;
         this.ev({ type: 'wardUse', side: m.side, kind: 'angel' });
         this.ev({ type: 'callout', side: m.side, text: 'Guardian Angel', sub: `${m.name} is lifted back up` });
         this.ev({ type: 'heal', tgt: m.id, amt: Math.round(m.hp) });
@@ -1222,7 +1222,7 @@ export class Duel {
     const foe = this.opp(owner);
     if (u.ess.includes('fire') || u.ukind === 'pitlord') {
       this.ev({ type: 'burst', side: foe.side, ess: 'fire', from: u.id, flight: 0.5 });
-      this.at(0.5, () => { this.damage(owner, foe, 6 * u.power, { kind: 'spell', ess: 'fire' }); this.applyStatus(foe, 'burn', 2, owner); });
+      this.at(0.5, () => { this.damage(owner, foe, 4 * u.power, { kind: 'spell', ess: 'fire' }); this.applyStatus(foe, 'burn', 1, owner); });
     }
     if (u.ess.includes('venom') || u.ukind === 'rat') this.makeField(owner, foe.side, 'miasma', 'Plague cloud', null, u.power, 6, 2, emptyRiders(), 'venom', {});
     for (const a of owner.arts) ARTIFACTS[a.id]?.hooks.unitDied?.(this.ctx(owner), a.st, u, true);
@@ -1248,7 +1248,7 @@ export class Duel {
     m.healed += got;
     this.ev({ type: 'heal', tgt: m.id, amt: r1(got) });
     for (const a of m.auras) {
-      if (a.id === 'retribution' && a.until > this.t) this.damage(m, this.opp(m), got * 0.4 * a.power, { kind: 'retribution', ess: 'holy', quiet: got < 1 });
+      if (a.id === 'retribution' && a.until > this.t) this.damage(m, this.opp(m), got * 0.3 * a.power, { kind: 'retribution', ess: 'holy', quiet: got < 1 });
     }
     for (const a of m.arts) ARTIFACTS[a.id]?.hooks.healed?.(this.ctx(m), a.st, got, fromCurse);
     return got;

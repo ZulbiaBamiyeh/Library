@@ -70,9 +70,10 @@ export function newRun(): Run {
     lib: { borrows: 3, candles: 5, peeked: {}, taken: {}, forbidden: 0 },
     shop: { stock: [], rerolls: 0, visited: false }, bindings: 2, desk: { base: null, inf: null }, phase: 'library', opponent: null, history: [],
   };
-  r.lines = [inst(r, 'spark'), inst(r, 'firebolt'), inst(r, 'frostshard'), null, null];
-  r.wards = [{ cond: 'struck', spell: null }, { cond: 'half', spell: null }];
-  r.satchel = [inst(r, 'imp'), inst(r, 'venomdart'), null, null, null, null];
+  // one basic spell to begin with; everything else comes from the library
+  r.lines = [inst(r, 'firebolt'), null, null, null];
+  r.wards = [];
+  r.satchel = [null, null, null, null, null, null];
   run = r;
   prepareRound();
   return r;
@@ -81,8 +82,8 @@ export function newRun(): Run {
 export function prepareRound() {
   const r = run!;
   while (r.lines.length < linesForRound(r.round)) r.lines.push(null);
-  const conds: WardCond[] = ['struck', 'half', 'every8', 'loop'];
-  while (r.wards.length < wardsForRound(r.round)) r.wards.push({ cond: conds[r.wards.length] || 'struck', spell: null });
+  const conds: WardCond[] = ['loop', 'every8', 'struck'];
+  while (r.wards.length < wardsForRound(r.round)) r.wards.push({ cond: conds[r.wards.length] || 'loop', spell: null });
   while (r.trinkets.length < trinketSlotsForRound(r.round)) r.trinkets.push(null);
   r.lib = { borrows: 3, candles: 5, peeked: {}, taken: {}, forbidden: 0 };
   r.shop = { stock: rollStock(r, 0), rerolls: 0, visited: false };
