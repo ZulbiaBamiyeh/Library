@@ -40,7 +40,7 @@ export const UNIT_TITLE: Record<string, string> = {
 function zeroSt(): Record<Status, number> { return { burn: 0, chill: 0, wet: 0, poison: 0, oil: 0, charge: 0, hex: 0 }; }
 const r1 = (x: number) => Math.round(x * 10) / 10;
 
-interface HitOpts { castId?: number; reflected?: boolean; noSplash?: boolean; attacker?: Body | null; kind?: string; glacier?: boolean; freezeAt?: number }
+interface HitOpts { castId?: number; reflected?: boolean; noSplash?: boolean; attacker?: Body | null; kind?: string; glacier?: boolean; freezeAt?: number; riderOnly?: boolean }
 
 export class Duel {
   t = 0;
@@ -606,12 +606,12 @@ export class Duel {
       this.damage(m, to, 6 * h, { kind: 'reaction', ess: 'holy' });
     }
     // Frost Armour: whoever hits you gains Chill
-    if (to.kind === 'mage' && foeSide) {
+    if (to.kind === 'mage' && foeSide && !o.riderOnly) {
       const tm = to as Mage;
       for (const a of tm.auras) if (a.id === 'frostarmour' && a.until > this.t) { const att = o.attacker || m; this.applyStatus(att, 'chill', 1, tm); this.damage(tm, att, 2 * a.power, { kind: 'spell', ess: 'frost', quiet: true }); }
     }
     // fused auras put their riders on every hit you make
-    if (foeSide) for (const a of m.auras) if (a.until > this.t && !ridersEmpty(a.riders)) this.applyRiders(m, to, a.riders, a.power, a.res, { noSplash: true });
+    if (foeSide && !o.riderOnly) for (const a of m.auras) if (a.until > this.t && !ridersEmpty(a.riders)) this.applyRiders(m, to, a.riders, a.power, a.res, { noSplash: true });
     if (!o.noSplash && foeSide) {
       const lite = { ...res, riders: { ...emptyRiders(), st: halfSt(r.st) } } as Resolved;
       if (r.chain) {
@@ -645,7 +645,7 @@ export class Duel {
   applyRiders(m: Mage, to: Body, r: Riders, power: number, res: Resolved, o: HitOpts) {
     if (!to.alive) return;
     const fake = { ...res, riders: r, compounds: [] } as Resolved;
-    this.hitPayload(m, to, fake, power, 0, {}, r.heavy, { ...o, noSplash: true });
+    this.hitPayload(m, to, fake, power, 0, {}, r.heavy, { ...o, noSplash: true, riderOnly: true });
   }
 
   daze(m: Mage, secs: number) {
@@ -1230,8 +1230,16 @@ export class Duel {
     if (u.life === Infinity) this.wardFire(owner, 'summondies');
   }
 
+  private healDepth = 0;
+
   heal(m: Mage, amt: number, fromCurse = false): number {
-    if (!m.alive || amt <= 0 || this.over()) return 0;
+    // heal -> damage -> heal chains (Retribution with lifesteal) stop after a few links
+    if (!m.alive || amt <= 0 || this.over() || this.healDepth > 3) return 0;
+    this.healDepth++;
+    try { return this.healInner(m, amt, fromCurse); } finally { this.healDepth--; }
+  }
+
+  private healInner(m: Mage, amt: number, fromCurse: boolean): number {
     for (const a of m.arts) { const f = ARTIFACTS[a.id]?.hooks.healMult; if (f) amt *= f(this.ctx(m), a.st); }
     const before = m.hp;
     m.hp = Math.min(m.maxHp, m.hp + amt);
@@ -1240,7 +1248,7 @@ export class Duel {
     m.healed += got;
     this.ev({ type: 'heal', tgt: m.id, amt: r1(got) });
     for (const a of m.auras) {
-      if (a.id === 'retribution' && a.until > this.t) this.damage(m, this.opp(m), got * 0.4 * a.power, { kind: 'spell', ess: 'holy', quiet: got < 1 });
+      if (a.id === 'retribution' && a.until > this.t) this.damage(m, this.opp(m), got * 0.4 * a.power, { kind: 'retribution', ess: 'holy', quiet: got < 1 });
     }
     for (const a of m.arts) ARTIFACTS[a.id]?.hooks.healed?.(this.ctx(m), a.st, got, fromCurse);
     return got;

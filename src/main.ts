@@ -71,3 +71,4 @@ requestAnimationFrame(frame);
 (window as unknown as { inkbound: typeof app }).inkbound = app;
 (window as unknown as { inkboundBusy: () => boolean }).inkboundBusy = () => busy;
 (window as unknown as { inkboundReload: () => unknown }).inkboundReload = () => loadRun();
+if (import.meta.env.DEV) import('./dev/fuzzBoard').then(m => { (window as unknown as { inkboundFuzz: (n: number, s?: number) => string }).inkboundFuzz = (n, s) => m.fuzzBoard(app.board, n, s); });

@@ -967,13 +967,17 @@ export class Board implements View {
     });
     this.sigils = this.sigils.filter(s => { if (s.dying > 0.5) { this.scene.remove(s.sprite); (s.sprite.material as THREE.Material).dispose(); return false; } return true; });
     // transients
-    this.transients = this.transients.filter(t => {
+    // transients may spawn more transients while updating (a burst landing), so collect those separately
+    const list = this.transients;
+    this.transients = [];
+    const keep: Transient[] = [];
+    for (const t of list) {
       t.t += dt;
       const k = Math.min(1, t.t / t.dur);
       t.update(k, t.obj);
-      if (k >= 1) { this.scene.remove(t.obj); t.dispose?.(); return false; }
-      return true;
-    });
+      if (k >= 1) { this.scene.remove(t.obj); t.dispose?.(); } else keep.push(t);
+    }
+    this.transients = keep.concat(this.transients);
     for (const f of this.flashes) {
       f.t += dt;
       f.light.intensity = f.t < f.dur ? f.power * (1 - f.t / f.dur) : 0;
