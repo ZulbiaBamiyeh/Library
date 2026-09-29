@@ -194,6 +194,12 @@ export const SPELL_LIST: SpellDef[] = [
   S('boulder', 'Boulder', 'stone', 'stone', 'bolt', 2, 16, 1.2, 1, 'heavy', '22 damage, a heavy hit that knocks their reading back 1 s'),
   S('crystal', 'Crystal Growth', 'stone', 'stone', 'aura', 1, 16, 0.4, 1, 'guard', 'Every 8 s a crystal grows that blocks one bolt (up to 2)'),
   S('petrify', 'Petrify', 'stone', 'stone', 'hex', 1, 20, 0.5, 2, 'heavy', 'Turns them to stone for 2.5 s; for 6 s heavy hits against them deal triple'),
+  // odder things, shelved among the rest
+  S('mothlantern', 'Moth Lantern', 'fire', 'fire', 'summon', 2, 14, 0.4, 1, 'hatch', 'A lantern full of moths: 14 health, spits embers for 2 damage and 1 Burning; when it breaks, 3 Burning pours onto their mage', 'mothlantern'),
+  S('glasscoffin', 'Glass Coffin', 'frost', 'frost', 'hex', 1, 18, 0.5, 2, 'linger', 'Seals them in ice for 3 s; if they are still standing when it cracks, the shards deal 12'),
+  S('bloodmoss', 'Blood Moss', 'venom', 'venom', 'field', 1, 16, 0.4, 1, 'mend', 'For 15 s moss creeps over their side: every 3 s they gain 1 Poison, and you heal 1 for every 2 Poison on them'),
+  S('stillbell', 'Bell of Stillness', 'holy', 'holy', 'hex', 2, 11, 0.3, 1, 'daze', 'A bell rings once: their reading slips back 2 s and their summons lose 3 s'),
+  S('weighingstone', 'Weighing Stone', 'stone', 'stone', 'bolt', 0, 11, 0.4, 1, 'heavy', '9 damage, a heavy hit, +1 for every 2 health they have more than you (up to +18)'),
 
   // ---------- the depths: ancient spells found only below the Reading Room ----------
   // The Lower Stacks
@@ -214,6 +220,16 @@ export const SPELL_LIST: SpellDef[] = [
   // The Stopped Clocks, then the Unwritten
   D(7, S('finalchapter', 'Final Chapter', 'shadow', 'shadow', 'curse', 1, 24, 0.6, 2, 'linger', 'They begin to end: damage every second, growing without limit until it is cleansed')),
   D(7, S('thing', 'Thing Between the Shelves', 'shadow', 'shadow', 'summon', 1, 28, 0.9, 2, 'heavy', '90 health. Every 6 s it swallows an enemy summon whole and grows; with nothing to eat, it bites the mage for 8', 'thing')),
+  // dark and ancient: each of these asks something back
+  D(1, S('effigy', 'Wax Effigy', 'shadow', 'shadow', 'curse', 1, 16, 0.5, 2, 'afflict', 'A wax likeness of them: every status that lands on you lands on them as well')),
+  D(2, S('redtithe', 'The Red Tithe', 'shadow', 'shadow', 'blessing', 2, 6, 0.1, 2, 'empower', 'Pay a sixth of your health; for 12 s every wound you deal, by spell, summon, curse or field, is doubled')),
+  D(3, S('martyrchain', "Martyr's Chain", 'holy', 'holy', 'curse', 1, 14, 0.4, 2, 'mend', 'You take a sixth of all the damage they take. When either of you falls below half health it snaps: 45 damage to whichever of you has more health')),
+  D(3, S('rootbind', 'Rootbind', 'stone', 'stone', 'hex', 2, 14, 0.4, 2, 'heavy', 'Roots burst up round them: silenced for 2 s, and their summons are held fast for 6 s')),
+  D(4, S('drownedchoir', 'The Drowned Choir', 'frost', 'frost', 'field', 1, 20, 0.6, 2, 'wet', 'For 12 s drowned voices sing: every 2 s they and their summons gain 1 Wet and 1 Chill, and you and yours 1 Wet')),
+  D(5, S('mirrordebt', 'Mirror Debt', 'arcane', 'arcane', 'curse', 1, 20, 0.6, 2, 'echo', 'For 10 s a mirror counts every wound you take; then they pay it all back at 75%')),
+  D(6, S('sleeper', 'The Sleeper Below', 'shadow', 'shadow', 'summon', 1, 30, 1.0, 2, 'heavy', 'Something vast wakes: 150 health. Every 6 s it crushes whichever mage has more health for 30, even you', 'sleeper')),
+  D(6, S('clockstop', 'Every Clock Stops', 'arcane', 'arcane', 'hex', 1, 18, 0.5, 2, 'quick', 'Both mages are held out of time for 3 s; the summons keep fighting')),
+  D(7, S('lastcandle', 'The Last Candle', 'holy', 'holy', 'blessing', 1, 16, 0.3, 2, 'mend', 'For 10 s nothing can bring you below 1 health; when the candle gutters, half of every wound it held back comes due')),
   D(6, S('ouroboros', 'Ouroboros Verse', 'arcane', 'arcane', 'blessing', 1, 20, 0.6, 2, 'echo', 'Every spent line in your tome is written back with one use')),
 ];
 

@@ -835,6 +835,40 @@ export function makeUnit(kind: string, tint: string | null): THREE.Group {
       g.userData.hover = 0.15;
       break;
     }
+    case 'mothlantern': {
+      // an iron lantern on a crooked pole, full of embers, with moths circling it
+      const iron = std('#2a2018', { metalness: 0.7, roughness: 0.4 });
+      add(mesh(new THREE.CylinderGeometry(0.025, 0.035, 0.9, 6), iron, 0, 0.45, 0));
+      add(mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.36, 6, 1, true), new THREE.MeshStandardMaterial({ color: '#3a2a18', metalness: 0.8, roughness: 0.4, wireframe: true }), 0, 1.05, 0));
+      add(mesh(new THREE.ConeGeometry(0.2, 0.14, 6), iron, 0, 1.3, 0));
+      add(at(glowSprite('#ffb040', 0.8, 0.9), new THREE.Vector3(0, 1.05, 0)));
+      add(mesh(new THREE.SphereGeometry(0.07, 8, 6), glowMat('#ff8a30', 3), 0, 1.02, 0));
+      const wing = new THREE.MeshStandardMaterial({ color: '#d8c8a0', side: THREE.DoubleSide, roughness: 1, emissive: new THREE.Color('#3a2a10') });
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2, y = 0.85 + (i % 3) * 0.18;
+        const moth = new THREE.Group(); moth.position.set(Math.cos(a) * 0.38, y, Math.sin(a) * 0.38); moth.rotation.y = -a;
+        for (const sx of [-1, 1]) { const w = mesh(new THREE.CircleGeometry(0.06, 5), wing); w.position.x = sx * 0.05; w.rotation.y = sx * 0.6; moth.add(w); }
+        add(moth);
+      }
+      break;
+    }
+    case 'sleeper': {
+      // something enormous and bowed, half-risen from the floor, with a single weary eye
+      const skin = new THREE.MeshStandardMaterial({ color: '#1a1614', roughness: 0.9, flatShading: true, emissive: new THREE.Color('#0a0404') });
+      const body = lathe([[0.001, 0], [1.1, 0.05], [1.2, 0.5], [1.0, 1.3], [0.8, 1.9], [0.5, 2.3], [0.001, 2.4]], skin, 12);
+      body.scale.set(1, 1, 0.8); add(body);
+      const head = mesh(new THREE.SphereGeometry(0.55, 14, 10), skin); head.position.set(0, 2.25, 0.55); head.scale.set(1, 0.8, 1.1); add(head);
+      for (const sx of [-1, 1]) {
+        const arm = mesh(new THREE.CylinderGeometry(0.16, 0.26, 1.8, 7), skin); arm.position.set(sx * 1.05, 0.9, 0.5); arm.rotation.set(0.5, 0, sx * 0.2); add(arm);
+        const hand = mesh(new THREE.SphereGeometry(0.32, 10, 8), skin); hand.position.set(sx * 1.2, 0.15, 1.05); hand.scale.set(1, 0.5, 1.3); add(hand);
+      }
+      for (let i = 0; i < 7; i++) { const sp = mesh(new THREE.ConeGeometry(0.08, 0.5, 5), skin); const a = -0.9 + i * 0.3; sp.position.set(Math.sin(a) * 0.7, 1.9 + Math.cos(a) * 0.2, -0.3); sp.rotation.set(-0.6, 0, -a * 0.8); add(sp); }
+      const ec = accent || '#ffd86a';
+      add(mesh(new THREE.SphereGeometry(0.12, 12, 10), glowMat(ec, 4), 0, 2.3, 1.08));
+      add(at(glowSprite(ec, 0.9, 0.6), new THREE.Vector3(0, 2.3, 1.1)));
+      add(at(glowSprite('#2a0a0a', 4.5, 0.45), new THREE.Vector3(0, 1.2, 0)));
+      break;
+    }
     case 'thing': {
       // something that lives between the shelves: tall, dark, too many eyes
       const dark = new THREE.MeshStandardMaterial({ color: '#08060c', roughness: 0.4, metalness: 0.2, emissive: new THREE.Color('#10081a') });
