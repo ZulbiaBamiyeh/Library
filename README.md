@@ -29,9 +29,9 @@ A run is a series of rounds and ends at 10 wins or 4 losses. You start with a si
 
 1. **The Library** (first person). Spine colour tells the school; thickness hints at rarity; chained books are forbidden (2 Hex at your next duel); glowing books hold a Codex hint. Spend candles to peek, borrow three books. Thick and chained books can hold reagents. Borrowing a spell you own upgrades it to Silver, then Gold.
 
-   **The Reading Room** is a tall hall with two galleries above it, cased in books floor to ceiling, with armchairs in the corners. A stair up each side wall reaches the first gallery, and a flight from there climbs to the second.
+   **The Reading Room** is a tall hall with two galleries above it, cased in books floor to ceiling, with armchairs in the corners. A stair up each side wall (south of the doorways) reaches the first gallery, and a flight from the east gallery climbs to the second.
 
-   **The depths.** The library is one building. A great open stairwell in the middle of the Reading Room drops through seven floors below it. Walk down the broad spiral stair, one turn per floor, with a bookcase winding down its outer edge; or step off its inner edge (or jump the rail) and fall through as many floors as you like. Each floor below is a warren grown out from the stair hall: wings, low winding corridors, tall galleries, dead ends and cramped alcoves, bigger the deeper you go (the bottom floor is about 150 units across). Some wings are only reached through a crawlspace: walk into the low opening and you duck into it, and it leads to a hidden room piled with loose heaps of books. The further a wing is from the stair, the stranger it gets: rows stop keeping straight, books drift off their shelves, and the spine colours go wrong. Tall rooms have balconies along a wall, reached by a stair, with more books above and an armchair at the end; other rooms have a raised reading platform in the middle. The plans are fixed, so a reader can learn them. Nothing is captioned: each wing keeps to one school of magic, deeper floors let rarer strays onto the shelves, and the fourteen **ancient spells** hide mostly in far-off wings, little alcoves and the heaps in hidden rooms. Four floors (the Ossuary Shelves, the Drowned Archive, the Stopped Clocks and the Unwritten) each have a **hidden shop** in their furthest hidden room: a keeper at a table with three rare curios, restocked every round. Only the floor you are on is drawn, plus its neighbours when you are near the stairwell, and only the blocks of shelves near you; fog swallows the rest. Going to the desk and back brings you up to the Reading Room.
+   **The depths.** The library is one building. A great open stairwell in the middle of the Reading Room drops through seven floors below it. Walk down the broad spiral stair, one turn per floor, with a bookcase winding down its outer edge; or step off its inner edge (or jump the rail) and fall through as many floors as you like. Each floor below is a warren grown out from the stair hall: wings, low winding corridors, tall galleries, dead ends and cramped alcoves, bigger the deeper you go (the bottom floor is about 150 units across). Some wings are only reached through a crawlspace: walk into the low opening and you duck into it, and it leads to a hidden room piled with loose heaps of books. The further a wing is from the stair, the stranger it gets: rows stop keeping straight, books drift off their shelves, and the spine colours go wrong. Tall rooms have balconies along a wall, reached by a stair, with more books above and an armchair at the end; other rooms have a raised reading platform in the middle. The plans are fixed, so a reader can learn them. Nothing is captioned: each wing keeps to one school of magic, deeper floors let rarer strays onto the shelves, and the fourteen **ancient spells** hide mostly in far-off wings, little alcoves and the heaps in hidden rooms. Every floor below the Reading Room hides **two shopkeepers** in its furthest rooms, most of them behind crawlspaces: a flame imp and a plague rat in the Lower Stacks, a skeleton and a cherub in the Ossuary, a treant and a salamander in the Root Cellar, a frost lich and a leech in the Drowned Archive, a book mimic and a tesla coil in the Inverse Stacks, a golem and a bookworm among the Stopped Clocks, and the Author and the Thing Between the Shelves in the Unwritten. Each sells three curios of its own school, restocked every round, and one of them is always an **oddity** nobody else sells (see below). Only the floor you are on is drawn, plus its neighbours when you are near the stairwell, and only the blocks of shelves near you; fog swallows the rest. Going to the desk and back brings you up to the Reading Room.
 
    | Ancient spell | Found from | Effect |
    |---|---|---|
@@ -95,6 +95,27 @@ Around fifty artifacts across four rarities, each a small set of hooks into the 
 | Eye of the Librarian | Mythic | The first once spell the enemy reads is struck out |
 | Bottled Eclipse | Mythic | At 30 s, swap every status and curse with the enemy |
 | Moebius Staff | Mythic staff | Your first line is read twice |
+
+The hidden shopkeepers also sell sixteen **oddities**, two per school, that the Curio Shop never stocks:
+
+| Oddity | School | Effect |
+|---|---|---|
+| The Imp's Tinderbox | Fire | Every 6 s, the enemy catches 2 Burning |
+| Brimstone Pipe | Fire | Whenever you give an enemy Burning, they also get 1 Oil |
+| Snow Globe of a Small Town | Frost | A snowman builds itself beside you at the start of each duel |
+| Icicle Dentures | Frost | Your spells give 1 Chill when they hit, at most once a second |
+| Rat King's Crown | Venom | Three plague rats scurry out at the start of each duel |
+| Suspicious Cheese | Venom | The enemy starts with 4 Poison; so do you, but only 1 |
+| Kite and Key | Storm | Every 10 s, lightning strikes the enemy for 6 and 2 Charge |
+| Static Sock | Storm | Your first three spells each give the enemy 2 Charge |
+| Acorn of the Old Oak | Stone | At 15 s, a treant sprouts to fight for you |
+| Hoard of Pebbles | Stone | Summons hit you for 2 less |
+| Rattling Ribcage | Shadow | Start with two skeletons; another rises each time your tome loops |
+| Chattering Jawbone | Shadow | When a spell hits you, 1-in-4 chance a skeleton rises for 8 s |
+| Tarnished Halo | Holy | Each loop, heal 8 and shed 2 of every status on you |
+| Choir in a Box | Holy | A cherub flutters out at the start of each duel |
+| Ledger of Late Fees | Arcane | Each time the enemy casts, you gain 2 ink |
+| Bottled Echo | Arcane | Every third spell you cast is read again at half strength |
 
 Reagents (Everburning Ink, Quicksilver, Gilded Thread, Unbinding Knife) are sold in the shop and found in thick or chained books.
 

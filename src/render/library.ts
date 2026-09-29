@@ -11,7 +11,8 @@ import { canvas, flagstones, glowTex, plasterTex, rugTex, woodTex, parchmentTex,
 import { glowSprite } from './models';
 import type { Shop } from './shop';
 import { quality, Q } from './quality';
-import { Stall, STALL_MERCHANTS } from './stall';
+import { Stall } from './stall';
+import { STALLS } from '../data/stalls';
 
 const R = 10; // half the width of the central hall
 const H = 7; // hall height
@@ -62,7 +63,7 @@ type Part = { p: THREE.Vector3; q: THREE.Quaternion; s: THREE.Vector3 };
 type RoomKind = 'hall' | 'room' | 'corridor' | 'gallery' | 'nook' | 'crawl' | 'hidden';
 interface Room { id: number; kind: RoomKind; ix0: number; iz0: number; ix1: number; iz1: number; ceil: number }
 interface Edge { x: number; z: number; nx: number; nz: number; ceil: number; room: number; kind: RoomKind; shelf: boolean }
-interface Plan { N: number; half: number; walk: Uint8Array; ceil: Float32Array; room: Int16Array; rooms: Room[]; edges: Edge[]; shop: number }
+interface Plan { N: number; half: number; walk: Uint8Array; ceil: Float32Array; room: Int16Array; rooms: Room[]; edges: Edge[]; shops: number[] } // shops: the rooms the stalls on this floor took, in STALLS order
 
 const TITLE_WORDS: Record<Essence, string[]> = {
   fire: ['Cinders', 'the Kiln', 'Ember Rites', 'Ash and Tallow', 'the Burning Hand', 'Pitch and Flame'],
@@ -78,7 +79,7 @@ const TITLE_FORMS = ['On {x}', 'A Treatise on {x}', '{x}, Annotated', 'Notes tow
 
 export type Pick = { kind: 'book'; i: number; d: number } | { kind: 'ware'; shop: number; i: number } | { kind: 'desk' } | { kind: 'arena' } | null;
 // the floors where someone keeps a shop of their own, somewhere out of the way
-export const SECRET_FLOORS = Object.keys(STALL_MERCHANTS).map(Number);
+export const SECRET_FLOORS = [...new Set(STALLS.map(s => s.d))];
 
 // Each floor down is darker, older and stranger than the one above it.
 export interface LevelDef {
@@ -185,7 +186,7 @@ function makePlan(d: number): Plan {
   };
   const hall: Room = { id: 0, kind: 'hall', ix0: N / 2 - 5, iz0: N / 2 - 5, ix1: N / 2 + 5, iz1: N / 2 + 5, ceil: H };
   rooms.push(hall); carve(hall);
-  let shop = -1;
+  const shops: number[] = [];
   const secret = new Uint8Array(N * N); // cells of crawlspaces and hidden rooms: nothing else may touch them
   if (d > 0) {
     const rng = mulberry32(7700 + d * 131);
@@ -244,16 +245,22 @@ function makePlan(d: number): Plan {
       rooms.push(rm); carve(rm);
       if (kind === 'hidden') for (const [x, z] of all) secret[idx(x, z)] = 1;
     }
-    // the shopkeeper of this floor, if it has one, took the furthest hidden room (or the furthest plain one)
-    if (STALL_MERCHANTS[d]) {
-      const dist = (r: Room) => Math.hypot((r.ix0 + r.ix1) / 2 - N / 2, (r.iz0 + r.iz1) / 2 - N / 2);
+    // the shopkeepers of this floor take the furthest hidden rooms (or plain ones), well apart from each other
+    const want = STALLS.filter(st => st.d === d).length;
+    if (want) {
+      const mid = (r: Room) => [(r.ix0 + r.ix1) / 2, (r.iz0 + r.iz1) / 2];
+      const dist = (r: Room) => Math.hypot(mid(r)[0] - N / 2, mid(r)[1] - N / 2);
       const area = (r: Room) => (r.ix1 - r.ix0) * (r.iz1 - r.iz0);
-      const pickOf = (kind: RoomKind) => rooms.filter(r => r.kind === kind && area(r) >= 9 && area(r) <= 40 && r.ix1 - r.ix0 >= 3 && r.iz1 - r.iz0 >= 3).sort((a, b) => dist(b) - dist(a))[0];
-      const rm = pickOf('hidden') || pickOf('room');
-      if (rm) {
-        shop = rm.id;
-        rm.ceil = 3.3;
-        for (let k = 0; k < N * N; k++) if (room[k] === rm.id) ceil[k] = rm.ceil;
+      const fits = (r: Room) => area(r) >= 9 && area(r) <= 40 && r.ix1 - r.ix0 >= 3 && r.iz1 - r.iz0 >= 3;
+      const cands = [...rooms.filter(r => r.kind === 'hidden' && fits(r)).sort((a, b) => dist(b) - dist(a)), ...rooms.filter(r => r.kind === 'room' && fits(r)).sort((a, b) => dist(b) - dist(a))];
+      for (const apart of [N / 3, N / 6, 0]) for (const r of cands) {
+        if (shops.length >= want) break;
+        if (shops.includes(r.id) || shops.some(id => Math.hypot(mid(rooms[id])[0] - mid(r)[0], mid(rooms[id])[1] - mid(r)[1]) < apart)) continue;
+        shops.push(r.id);
+      }
+      for (const id of shops) {
+        rooms[id].ceil = 3.3;
+        for (let k = 0; k < N * N; k++) if (room[k] === id) ceil[k] = 3.3;
       }
     }
   }
@@ -275,7 +282,7 @@ function makePlan(d: number): Plan {
       edges.push({ x: cx + dx * C / 2, z: cz + dz * C / 2, nx: -dx, nz: -dz, ceil: ceil[k], room: room[k], kind: rm.kind, shelf });
     }
   }
-  return { N, half, walk, ceil, room, rooms, edges, shop };
+  return { N, half, walk, ceil, room, rooms, edges, shops };
 }
 
 // One floor of the library.
@@ -432,7 +439,9 @@ export class Library implements View {
         if (Math.min(y0, y1) < 0.5) {
           // (from where it is too high to step onto to where there is headroom under it)
           const lowAt = y0 < y1 ? from : to, highAt = y0 < y1 ? to : from, top = Math.max(y0, y1);
-          const b = lowAt + (highAt - lowAt) * Math.min(1, (STEP_UP + 0.05) / top), e = lowAt + (highAt - lowAt) * Math.min(1, 2 / top);
+          // (pushed on by a body's width, so someone climbing the first steps isn't caught by it)
+          const dirA = Math.sign(highAt - lowAt);
+          const b = lowAt + (highAt - lowAt) * Math.min(1, (STEP_UP + 0.05) / top) + dirA * (BODY + 0.1), e = lowAt + (highAt - lowAt) * Math.min(1, 2 / top);
           const a0 = Math.min(b, e), a1 = Math.max(b, e);
           colliders.push(axis === 0 ? { x0: a0, x1: a1, z0, z1, hi: 0.3 } : { x0, x1, z0: a0, z1: a1, hi: 0.3 });
         }
@@ -485,29 +494,30 @@ export class Library implements View {
           });
           for (const [x, z] of [[-G - 0.15, -G - 0.15], [G + 0.15, -G - 0.15], [-G - 0.15, G + 0.15], [G + 0.15, G + 0.15], [-4, -G - 0.15], [4, -G - 0.15], [-4, G + 0.15], [4, G + 0.15]]) if (ty === T1) post(x, z, T2);
         }
-        // two stairs up the side walls to the first gallery, and one flight on from there to the second
-        addRamp(6.2, 7.6, -3.6, 6.8, 1, 6.8, -3.6, 0, T1);
-        addRamp(-7.6, -6.2, -3.6, 6.8, 1, 6.8, -3.6, 0, T1);
-        addDeck(6.2, 7.6, -7.6, -3.6, T1); addDeck(-7.6, -6.2, -5.0, -3.6, T1);
-        addRamp(-3.8, 6.2, -7.6, -6.2, 0, 6.2, -3.8, T1, T2);
-        addDeck(-5.2, -3.8, -7.6, -6.2, T2);
-        // railings: stair sides, landings, and the galleries' inner edges (open where the stairs arrive)
+        // two stairs up the side walls, south of the doorways so both doors stay clear, and one flight from
+        // the east gallery on up to the second
         for (const sx of [1, -1]) {
-          addRail(sx * 6.2, 6.8, sx * 6.2, -3.6, 0, T1, 0.35);
-          addRail(sx * 7.6, 6.8, sx * 7.6, -2.3, 0, T1 * (6.8 + 2.3) / 10.4, 0.35);
-          addRail(sx * 7.6, -2.3, sx * 7.6, 7.6, T1, T1);
+          const xi = sx * 6.2, xo = sx * 7.6, [xa, xb] = sx > 0 ? [6.2, 7.6] : [-7.6, -6.2];
+          addRamp(xa, xb, 0.3, 7.9, 1, 7.9, 0.3, 0, T1); // walk on at the south end
+          addDeck(xa, xb, -1.1, 0.3, T1); // a landing at the top
+          addRail(xi, 7.9, xi, 0.3, 0, T1, 0.35);
+          addRail(xo, 7.9, xo, 1.0, 0, T1 * (7.9 - 1.0) / 7.6, 0.35);
+          addRail(xi, -1.1, xi, 0.3, T1, T1); addRail(xi, -1.1, xo, -1.1, T1, T1);
+          // the side gallery's inner edge, open where the landing meets it
+          addRail(xo, 1.0, xo, 7.6, T1, T1);
+          addRail(xo, sx > 0 ? -6.2 : -7.6, xo, -1.1, T1, T1);
         }
-        addRail(6.2, -6.2, 6.2, -3.6, T1, T1);
-        addRail(-6.2, -5.0, -6.2, -3.6, T1, T1); addRail(-7.6, -5.0, -6.2, -5.0, T1, T1); addRail(-7.6, -7.6, -7.6, -5.0, T1, T1);
-        addRail(6.2, -6.2, -3.8, -6.2, T1, T2, T1 + 0.35); addRail(6.2, -7.6, -3.8, -7.6, T1, T2, T1 + 0.8);
-        addRail(-5.2, -6.2, -3.8, -6.2, T2, T2); addRail(-5.2, -7.6, -5.2, -6.2, T2, T2);
+        addRamp(-2.4, 7.6, -7.6, -6.2, 0, 7.6, -2.4, T1, T2);
+        addDeck(-3.8, -2.4, -7.6, -6.2, T2);
+        addRail(7.6, -6.2, -2.4, -6.2, T1, T2, T1 + 0.35); addRail(7.6, -7.6, -2.4, -7.6, T1, T2, T1 + 0.8);
+        addRail(-3.8, -6.2, -2.4, -6.2, T2, T2); addRail(-3.8, -7.6, -3.8, -6.2, T2, T2);
         addRail(-7.6, -7.6, 7.6, -7.6, T1, T1); addRail(-7.6, 7.6, 7.6, 7.6, T1, T1);
-        addRail(-7.6, -7.6, -5.2, -7.6, T2, T2); addRail(-3.6, -7.6, 7.6, -7.6, T2, T2); addRail(-7.6, 7.6, 7.6, 7.6, T2, T2);
+        addRail(-7.6, -7.6, -3.8, -7.6, T2, T2); addRail(-2.2, -7.6, 7.6, -7.6, T2, T2); addRail(-7.6, 7.6, 7.6, 7.6, T2, T2);
         addRail(7.6, -7.6, 7.6, 7.6, T2, T2); addRail(-7.6, -7.6, -7.6, 7.6, T2, T2);
         // candles along both galleries, against the shelves
-        for (const ty of [T1, T2]) for (const [x, z] of [[0, -9.0], [0, 9.0], [9.0, 0], [-9.0, 0], [-4.5, 9.0], [4.5, -9.0]]) {
+        for (const ty of [T1, T2]) for (const [x, z] of [[0, -9.1], [0, 9.1], [9.1, 3], [-9.1, 3], [-4.5, 9.1], [4.5, -9.1]]) {
           stands.push(new THREE.Vector3(x, ty, z));
-          colliders.push({ x0: x - 0.25, x1: x + 0.25, z0: z - 0.25, z1: z + 0.25, lo: ty - 0.4, hi: ty + 1.4 });
+          colliders.push({ x0: x - 0.12, x1: x + 0.12, z0: z - 0.12, z1: z + 0.12, lo: ty - 0.4, hi: ty + 1.4 });
         }
         // reading nooks in the gallery corners
         addNook(9.0, 8.8, T1, Math.PI + 0.7); addNook(-9.0, 8.8, T1, Math.PI - 0.7);
@@ -557,7 +567,7 @@ export class Library implements View {
         const mrng = mulberry32(313 + d * 53);
         const mezz = new Map<number, { alongX: boolean; wall: number; into: number }>();
         for (const rm of plan.rooms) {
-          if (!(rm.kind === 'gallery' || rm.kind === 'room') || rm.id === plan.shop || rm.ceil < 6.2) continue;
+          if (!(rm.kind === 'gallery' || rm.kind === 'room') || plan.shops.includes(rm.id) || rm.ceil < 6.2) continue;
           const w = (rm.ix1 - rm.ix0) * C, dd = (rm.iz1 - rm.iz0) * C;
           if (Math.max(w, dd) < 12 || Math.min(w, dd) < 6) continue;
           if (mrng() > (rm.kind === 'gallery' ? 0.8 : 0.55)) continue;
@@ -592,7 +602,7 @@ export class Library implements View {
             if (frng() < 0.25 + far * 0.4) addPile(mx + (frng() - 0.5) * 0.6, mz + (frng() - 0.5) * 0.6, rm.id, frng);
             return;
           }
-          if (rm.id === plan.shop) return; // the shopkeeper furnishes it
+          if (plan.shops.includes(rm.id)) return; // the shopkeeper furnishes it
           const w = x1 - x0, dd = z1 - z0;
           if (rm.kind === 'hidden') {
             const n = 2 + Math.floor(frng() * 3);
@@ -763,27 +773,30 @@ export class Library implements View {
       });
       const bandMesh = new THREE.InstancedMesh(boxGeo, new THREE.MeshStandardMaterial({ color: '#8a8a92', metalness: 0.9, roughness: 0.35 }), 600);
       bandMesh.count = 0; S.add(bandMesh);
-      // the shopkeeper's room on this floor
-      if (plan.shop >= 0) {
-        const rm = plan.rooms[plan.shop], N = plan.N;
+      // the shopkeepers' rooms on this floor
+      const shopStands = new Set<number>();
+      STALLS.filter(sd => sd.d === d).forEach((sd, si) => {
+        if (plan.shops[si] === undefined) return;
+        const rm = plan.rooms[plan.shops[si]], N = plan.N;
         const mx = ((rm.ix0 + rm.ix1) / 2 - N / 2) * C, mz = ((rm.iz0 + rm.iz1) / 2 - N / 2) * C;
         // the stall faces the way in, which is roughly back towards the stair
         const tx = WELL.x - mx, tz = WELL.z - mz;
         const ry = Math.abs(tx) > Math.abs(tz) ? (tx > 0 ? Math.PI / 2 : -Math.PI / 2) : (tz > 0 ? 0 : Math.PI);
-        const st = new Stall(d, L.flame);
+        const st = new Stall(sd, L.flame);
         st.group.position.set(mx, 0, mz); st.group.rotation.y = ry; g.add(st.group);
-        this.stalls[d] = st;
+        this.stalls[sd.key] = st;
         const fw = new THREE.Vector3(Math.sin(ry), 0, Math.cos(ry)), side = new THREE.Vector3(Math.cos(ry), 0, -Math.sin(ry));
         // the table and the keeper behind it
         const pts = [fw.clone().multiplyScalar(0.3).addScaledVector(side, 1.3), fw.clone().multiplyScalar(0.3).addScaledVector(side, -1.3), fw.clone().multiplyScalar(-1.3).addScaledVector(side, 1.3), fw.clone().multiplyScalar(-1.3).addScaledVector(side, -1.3)];
         colliders.push({ x0: mx + Math.min(...pts.map(p => p.x)), x1: mx + Math.max(...pts.map(p => p.x)), z0: mz + Math.min(...pts.map(p => p.z)), z1: mz + Math.max(...pts.map(p => p.z)) });
+        shopStands.add(stands.length);
         stands.push(new THREE.Vector3(mx, 0, mz).addScaledVector(fw, 0.9));
-      }
+      });
       // candle stands, all drawn at once
       const wax = new THREE.MeshStandardMaterial({ color: '#eae0c2', emissive: new THREE.Color('#332a18'), roughness: 0.6 });
       const flames: THREE.Sprite[] = [];
       {
-        const bare = stands.filter((_, i) => i !== stands.length - 1 || plan.shop < 0); // the shop's lamp is its own
+        const bare = stands.filter((_, i) => !shopStands.has(i)); // a shop's lamp is its own
         const poles = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.05, 0.14, 1.3, 8), iron, Math.max(1, bare.length));
         const wicks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.045, 0.045, 1, 8), wax, Math.max(1, bare.length * 3));
         const m4 = new THREE.Matrix4(), q = new THREE.Quaternion();
@@ -931,7 +944,7 @@ export class Library implements View {
     const F = this.floors[d], P = F.plan, out: [number, number][] = [];
     n = Math.round(n * P.N / 44); // bigger floors, more of everything
     // rooms further from the stair are likelier to be picked, so the strangeness thickens as you go out
-    const rooms = P.rooms.filter(r => r.kind !== 'corridor' && r.kind !== 'crawl' && r.id !== P.shop);
+    const rooms = P.rooms.filter(r => r.kind !== 'corridor' && r.kind !== 'crawl' && !P.shops.includes(r.id));
     const wts = rooms.map(rm => 0.35 + Math.hypot((rm.ix0 + rm.ix1) / 2 - P.N / 2, (rm.iz0 + rm.iz1) / 2 - P.N / 2) / (P.N / 2));
     const total = wts.reduce((a, b) => a + b, 0);
     for (let k = 0; k < n * 4 && out.length < n; k++) {
@@ -1417,10 +1430,12 @@ export class Library implements View {
   // which shop the reader is standing in: -1 for the Curio Shop, a floor number for a hidden one, or null
   inShop(): number | null {
     if (this.feet > -0.6 && this.feet < 1.2 && this.pos.x > R + 0.4) return -1;
-    const st = this.stalls[this.level];
-    if (st && this.levelOf(this.feet) === this.level) {
-      const p = new THREE.Vector3(); st.group.getWorldPosition(p);
-      if (Math.hypot(p.x - this.pos.x, p.z - this.pos.z) < 3.6) return this.level;
+    if (this.levelOf(this.feet) !== this.level) return null;
+    const p = new THREE.Vector3();
+    for (const k in this.stalls) {
+      if (Math.floor(+k / 10) !== this.level) continue;
+      this.stalls[k].group.getWorldPosition(p);
+      if (Math.hypot(p.x - this.pos.x, p.z - this.pos.z) < 3.6) return +k;
     }
     return null;
   }
@@ -1647,7 +1662,7 @@ export class Library implements View {
       if (top) this.shop.update(dt, time);
       else for (const s of this.shopLights) s.L.intensity = 0;
     }
-    for (const k in this.stalls) if (+k === this.level) this.stalls[k].update(dt, time, this.pos);
+    for (const k in this.stalls) if (Math.floor(+k / 10) === this.level) this.stalls[k].update(dt, time, this.pos);
     this.arenaMat.uniforms.uTime.value = time;
     (this.arenaGlow.material as THREE.SpriteMaterial).opacity = 0.26 + Math.sin(time * 1.3) * 0.06;
     this.arenaRunes.opacity = 0.6 + Math.sin(time * 3) * 0.3;

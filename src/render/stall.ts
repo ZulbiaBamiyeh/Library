@@ -2,16 +2,9 @@
 import * as THREE from 'three';
 import { ARTIFACTS, REAGENTS, RARITY } from '../data/artifacts';
 import type { ShopItem } from '../game/run';
+import type { StallDef } from '../data/stalls';
 import { glowSprite, makeArtifactModel, makeUnit } from './models';
 import { woodTex } from './textures';
-
-// who keeps a shop on which floor, and what they look like
-export const STALL_MERCHANTS: Record<number, { unit: string; tint: string | null; scale: number; cloth: string }> = {
-  2: { unit: 'skeleton', tint: '#7aff9a', scale: 1.7, cloth: '#2a3a2a' },
-  4: { unit: 'frostlich', tint: '#5ab0ff', scale: 1.6, cloth: '#1a3040' },
-  6: { unit: 'golem', tint: '#ffd070', scale: 1.25, cloth: '#4a3a1a' },
-  7: { unit: 'author', tint: null, scale: 1.6, cloth: '#1a1a1e' },
-};
 
 interface Ware { root: THREE.Group; model: THREE.Group | null; ring: THREE.Mesh; pick: THREE.Mesh; item: ShopItem | null; spin: number; lift: number; bought: number; staff: boolean }
 
@@ -22,9 +15,10 @@ export class Stall {
   hover = -1;
   private lamp: THREE.Sprite;
   private sold = 0;
+  private base = 0;
 
-  constructor(d: number, flame: string) {
-    const M = STALL_MERCHANTS[d];
+  constructor(M: StallDef, flame: string) {
+    const d = M.d;
     const g = this.group;
     const wood = new THREE.MeshStandardMaterial({ map: woodTex(21 + d, [70, 46, 32], 256, 512, 1), roughness: 0.8 });
     const top = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.08, 0.9), wood); top.position.set(0, 0.86, 0.3); g.add(top);
@@ -32,7 +26,10 @@ export class Stall {
     const cloth = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.5, 0.02), new THREE.MeshStandardMaterial({ color: M.cloth, roughness: 1 }));
     cloth.position.set(0, 0.62, 0.76); g.add(cloth);
     this.keeper = makeUnit(M.unit, M.tint);
-    this.keeper.scale.setScalar(M.scale); this.keeper.position.set(0, 0, -0.75); g.add(this.keeper);
+    // small keepers stand on a crate behind the table so they can see over it
+    if (M.lift) { const crate = new THREE.Mesh(new THREE.BoxGeometry(0.8, M.lift, 0.8), wood); crate.position.set(0, M.lift / 2, -0.75); g.add(crate); }
+    this.keeper.scale.setScalar(M.scale); this.keeper.position.set(0, M.lift || 0, -0.75); g.add(this.keeper);
+    this.base = M.lift || 0;
     // a lamp on the table
     const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.08, 0.3, 8), new THREE.MeshStandardMaterial({ color: '#2a2018', metalness: 0.7, roughness: 0.4 }));
     lamp.position.set(0.95, 1.05, 0.05); g.add(lamp);
@@ -99,7 +96,7 @@ export class Stall {
     this.keeper.rotation.y += (Math.max(-0.9, Math.min(0.9, want)) - this.keeper.rotation.y) * Math.min(1, dt * 2);
     this.sold = Math.max(0, this.sold - dt * 0.8);
     this.keeper.rotation.x = Math.sin(this.sold * Math.PI) * 0.25;
-    this.keeper.position.y = Math.sin(time * 1.3) * 0.02;
+    this.keeper.position.y = this.base + Math.sin(time * 1.3) * 0.02;
     this.lamp.scale.setScalar(0.9 + Math.sin(time * 9) * 0.05);
   }
 }

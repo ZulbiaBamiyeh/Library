@@ -65,6 +65,7 @@ export interface ArtifactDef {
   model: ModelSpec;
   ess?: Essence; // which school it leans toward, for shop colouring
   hooks: ArtifactHooks;
+  shopOnly?: boolean; // an oddity only the hidden shopkeepers in the depths sell
 }
 
 export const RARITY = [
@@ -339,6 +340,79 @@ export const ARTIFACT_LIST: ArtifactDef[] = [
       c.duel.at(0.5, () => c.duel.cast(c.me, baseSpell(d.id), { power: 1, via: 'Unwritten Page', echo: true }));
     } }, 'arcane'),
 ];
+
+// ---------------- oddities: sold only by the shopkeepers hidden in the depths, two per school ----------------
+const odd = (a: ArtifactDef): ArtifactDef => ({ ...a, shopOnly: true });
+ARTIFACT_LIST.push(
+  odd(A('tinderbox', "The Imp's Tinderbox", 'trinket', 2, 'Every 6 s, the enemy catches 2 Burning.', 'The imp swears it is empty. It is never empty.',
+    { kind: 'pouch', color: '#8a2a1a', glow: '#ff7a3d' },
+    { tick: (c, s, dt) => { s.t = (s.t || 0) + dt; if (s.t < 6) return; s.t -= 6; flash(c, 'tinderbox'); c.duel.applyStatus(c.foe, 'burn', 2, c.me); } }, 'fire')),
+  odd(A('brimstonepipe', 'Brimstone Pipe', 'trinket', 3, 'Whenever you give an enemy Burning, they also get 1 Oil.', 'Smoked by a salamander. The smoke rings are on fire.',
+    { kind: 'candle', color: '#3a1a10', glow: '#ffb050' },
+    { outStatus: (c, s, st, n, tgt) => {
+      if (st === 'burn' && n > 0 && foeOf(c, tgt) && !s.busy) { s.busy = 1; c.duel.applyStatus(tgt, 'oil', 1, c.me); s.busy = 0; }
+      return n;
+    } }, 'fire')),
+  odd(A('snowglobe', 'Snow Globe of a Small Town', 'trinket', 2, 'At the start of each duel, a snowman builds itself beside you.', 'Shake it and a very small blizzard ruins a very small wedding.',
+    { kind: 'bottle', color: '#d8ecff', glow: '#9fdcff' },
+    { start: c => { flash(c, 'snowglobe'); c.duel.addUnit(c.me.side, 'snowman', { power: 1, name: 'Snowman' }); } }, 'frost')),
+  odd(A('icicledentures', 'Icicle Dentures', 'trinket', 1, 'Your spells give the enemy 1 Chill when they hit, at most once a second.', 'They click when the lich laughs. He laughs a lot.',
+    { kind: 'tooth', color: '#cfe8ff', glow: '#9fdcff' },
+    { dealt: (c, s, tgt, _amt, info) => {
+      if (info.kind !== 'spell' || !foeOf(c, tgt) || (s.t !== undefined && c.duel.t - s.t < 1)) return;
+      s.t = c.duel.t; c.duel.applyStatus(tgt, 'chill', 1, c.me);
+    } }, 'frost')),
+  odd(A('ratcrown', "Rat King's Crown", 'trinket', 2, 'At the start of each duel, three plague rats scurry out to fight for you.', 'Woven from tails. Do not ask whose.',
+    { kind: 'crown', color: '#5a4a3a', glow: '#94e36a' },
+    { start: c => { flash(c, 'ratcrown'); for (let k = 0; k < 3; k++) c.duel.addUnit(c.me.side, 'rat', { power: 1, name: 'Plague Rat' }); } }, 'venom')),
+  odd(A('cheese', 'Suspicious Cheese', 'trinket', 1, 'The enemy starts each duel with 4 Poison. So do you, but only 1.', 'Aged in the Lower Stacks. Aged a great deal.',
+    { kind: 'rock', color: '#e0c050', glow: '#94e36a' },
+    { start: c => { flash(c, 'cheese'); c.duel.applyStatus(c.foe, 'poison', 4, c.me); c.duel.applyStatus(c.me, 'poison', 1, null); } }, 'venom')),
+  odd(A('kitekey', 'Kite and Key', 'trinket', 2, 'Every 10 s, lightning strikes the enemy for 6 and gives them 2 Charge.', 'Flown on a string in a thunderstorm by someone who did not live to regret it.',
+    { kind: 'coin', color: '#b87333', glow: '#ffe066' },
+    { tick: (c, s, dt) => {
+      s.t = (s.t || 0) + dt; if (s.t < 10) return; s.t -= 10;
+      flash(c, 'kitekey');
+      c.duel.ev({ type: 'strike', tgt: c.foe.id, ess: 'storm' });
+      c.duel.damage(c.me, c.foe, 6, { kind: 'other', ess: 'storm' });
+      c.duel.applyStatus(c.foe, 'charge', 2, c.me);
+    } }, 'storm')),
+  odd(A('staticsock', 'Static Sock', 'trinket', 1, 'Your first three spells each duel give the enemy 2 Charge.', 'Rubbed on every carpet in the library. Crackles if you look at it.',
+    { kind: 'glove', color: '#8a8a9a', glow: '#ffe066' },
+    { cast: (c, s, _res, echo) => { if (echo || (s.n || 0) >= 3) return; s.n = (s.n || 0) + 1; c.duel.applyStatus(c.foe, 'charge', 2, c.me); } }, 'storm')),
+  odd(A('acorn', 'Acorn of the Old Oak', 'trinket', 2, 'At 15 s, a treant sprouts beside you and fights for you.', 'Plant it anywhere. It has opinions about where.',
+    { kind: 'idol', color: '#8a6a3a', glow: '#a6e86a' },
+    { tick: (c, s) => { if (s.done || c.duel.t < 15) return; s.done = 1; flash(c, 'acorn'); c.duel.addUnit(c.me.side, 'treant', { power: 1, name: 'Oakling' }); } }, 'stone')),
+  odd(A('pebbles', 'Hoard of Pebbles', 'trinket', 1, 'Summons hit you for 2 less.', 'Every one of them was a gift from the golem. You cannot refuse a gift from a golem.',
+    { kind: 'pouch', color: '#7a7470', glow: '#d0a577' },
+    { inDmg: (_c, _s, _src, amt, info) => info.kind === 'summon' ? Math.max(0.5, amt - 2) : amt }, 'stone')),
+  odd(A('ribcage', 'Rattling Ribcage', 'trinket', 2, 'You start each duel with two skeletons, and another rises each time your tome loops.', 'It rattles in time with your heartbeat. Or instead of it.',
+    { kind: 'bone', color: '#e8e0cc', glow: '#c8d8ff' },
+    { start: c => { flash(c, 'ribcage'); for (let k = 0; k < 2; k++) c.duel.addUnit(c.me.side, 'skeleton', { power: 1 }); },
+      loop: c => { c.duel.addUnit(c.me.side, 'skeleton', { power: 1 }); } }, 'shadow')),
+  odd(A('jawbone', 'Chattering Jawbone', 'trinket', 1, 'When a spell hits you, 1-in-4 chance a skeleton rises to fight for you for 8 s.', 'It will not stop talking. Mostly about you.',
+    { kind: 'skull', color: '#d8d0b8', glow: '#e0486e' },
+    { inDmg: (c, s, _src, amt, info) => {
+      if (info.kind === 'spell' && amt > 0 && c.duel.rng() < 0.25 && (s.t === undefined || c.duel.t - s.t > 1)) { s.t = c.duel.t; flash(c, 'jawbone'); c.duel.addUnit(c.me.side, 'skeleton', { power: 1, life: 8 }); }
+      return amt;
+    } }, 'shadow')),
+  odd(A('halo', 'Tarnished Halo', 'trinket', 2, 'Each time your tome loops, heal 8 and shed 2 of every status on you.', 'Slightly bent. Still works, mostly.',
+    { kind: 'ring', color: '#d9b45a', glow: '#ffeaa0' },
+    { loop: c => { flash(c, 'halo'); c.duel.heal(c.me, 8); for (const k of Object.keys(c.me.st) as (keyof typeof c.me.st)[]) c.me.st[k] = Math.max(0, c.me.st[k] - 2); } }, 'holy')),
+  odd(A('choirbox', 'Choir in a Box', 'trinket', 1, 'At the start of each duel, a cherub flutters out to sing for you.', 'Wind the key. Do not wind it twice.',
+    { kind: 'jar', color: '#f0e0c0', glow: '#ffeaa0' },
+    { start: c => { flash(c, 'choirbox'); c.duel.addUnit(c.me.side, 'cherub', { power: 1, name: 'Cherub' }); } }, 'holy')),
+  odd(A('latefees', 'Ledger of Late Fees', 'trinket', 1, 'Each time the enemy casts a spell, you gain 2 ink.', 'Every book they ever returned late, itemised.',
+    { kind: 'page', color: '#e8dcc0', glow: '#c59bff' },
+    { foeCast: c => { c.me.ink = Math.min(c.me.maxInk, c.me.ink + 2); } }, 'arcane')),
+  odd(A('bottledecho', 'Bottled Echo', 'trinket', 3, 'Every third spell you cast is read out again at half strength.', 'Uncork it and it says whatever you said last. Twice.',
+    { kind: 'bottle-dark', color: '#3a2a5a', glow: '#c59bff' },
+    { cast: (c, s, res, echo) => {
+      if (echo) return;
+      s.n = (s.n || 0) + 1;
+      if (s.n % 3 === 0) { flash(c, 'bottledecho'); c.duel.at(0.45, () => c.duel.cast(c.me, res, { power: 0.5, via: 'Bottled Echo', echo: true })); }
+    } }, 'arcane')),
+);
 
 export const ARTIFACTS: Record<string, ArtifactDef> = {};
 for (const a of ARTIFACT_LIST) ARTIFACTS[a.id] = a;

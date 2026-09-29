@@ -4,6 +4,7 @@ import type { SpellInst } from '../data/fusion';
 import { ARTIFACTS, ARTIFACT_LIST, REAGENT_LIST, RARITY } from '../data/artifacts';
 import type { TomeSpec, WardCond } from '../sim/types';
 import { makeBot } from '../sim/bots';
+import { STALL_BY_KEY } from '../data/stalls';
 import { hashStr, mulberry32, weighted, shuffle } from '../sim/rng';
 import { bindingsForRound, hpForRound, inkForRound, linesForRound, trinketSlotsForRound, wardsForRound } from './progression';
 
@@ -151,7 +152,7 @@ export function rollStock(r: Run, reroll: number): ShopItem[] {
   const rng = mulberry32(hashStr(`${r.id}:${r.round}:shop:${reroll}`));
   const owned = new Set([r.staff, ...r.trinkets, ...r.stash].filter(Boolean));
   const w = rarityWeights(r.round);
-  const pool = ARTIFACT_LIST.filter(a => !owned.has(a.id) && a.id !== 'ashwood');
+  const pool = ARTIFACT_LIST.filter(a => !owned.has(a.id) && a.id !== 'ashwood' && !a.shopOnly);
   const out: ShopItem[] = [];
   // always one staff on offer, then trinkets
   const staves = pool.filter(a => a.slot === 'staff');
@@ -167,22 +168,26 @@ export function rollStock(r: Run, reroll: number): ShopItem[] {
   return out;
 }
 
-// A hidden shop keeps only three things, and they are rarer the deeper it is.
-export function secretStock(r: Run, d: number): ShopItem[] {
+// A hidden shop keeps only three things: one oddity of its keeper's school that no other shop sells,
+// and two more curios of that school, rarer the deeper it is. Keyed by stall (floor × 10 + place).
+export function secretStock(r: Run, key: number): ShopItem[] {
   if (!r.secret) r.secret = {};
-  if (r.secret[d]) return r.secret[d];
-  const rng = mulberry32(hashStr(`${r.id}:${r.round}:secret:${d}`));
-  const owned = new Set([r.staff, ...r.trinkets, ...r.stash, ...r.shop.stock.map(s => s.id)].filter(Boolean));
+  if (r.secret[key]) return r.secret[key];
+  const d = Math.floor(key / 10), ess = STALL_BY_KEY[key]?.ess;
+  const rng = mulberry32(hashStr(`${r.id}:${r.round}:secret:${key}`));
+  const taken = new Set([r.staff, ...r.trinkets, ...r.stash, ...r.shop.stock.map(s => s.id), ...Object.values(r.secret).flat().map(s => s.id)].filter(Boolean));
   const w = [Math.max(0, 8 - d), 22, 36 + d * 3, 10 + d * 5];
-  const pool = ARTIFACT_LIST.filter(a => !owned.has(a.id) && a.id !== 'ashwood');
+  const free = ARTIFACT_LIST.filter(a => !taken.has(a.id) && a.id !== 'ashwood');
   const out: ShopItem[] = [];
-  while (out.length < 3 && pool.length) {
-    if (out.length === 2 && rng() < 0.4) { out.push({ kind: 'reagent', id: REAGENT_LIST[Math.floor(rng() * REAGENT_LIST.length)].id, sold: false }); break; }
-    const a = weighted(rng, pool, x => w[x.rarity]);
-    pool.splice(pool.indexOf(a), 1);
-    out.push({ kind: 'art', id: a.id, sold: false });
+  const take = (pool: typeof free) => { if (!pool.length) return; const a = weighted(rng, pool, x => w[x.rarity] + 1); free.splice(free.indexOf(a), 1); out.push({ kind: 'art', id: a.id, sold: false }); };
+  take(free.filter(a => a.shopOnly && a.ess === ess));
+  if (!out.length) take(free.filter(a => a.shopOnly));
+  while (out.length < 3) {
+    const themed = free.filter(a => !a.shopOnly && a.ess === ess);
+    if (out.length === 2 && rng() < 0.3) { out.push({ kind: 'reagent', id: REAGENT_LIST[Math.floor(rng() * REAGENT_LIST.length)].id, sold: false }); break; }
+    if (themed.length) take(themed); else if (free.length) take(free.filter(a => !a.shopOnly).length ? free.filter(a => !a.shopOnly) : free); else break;
   }
-  r.secret[d] = out;
+  r.secret[key] = out;
   return out;
 }
 
