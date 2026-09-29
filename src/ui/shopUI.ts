@@ -173,8 +173,7 @@ export const shopScreen: Screen = {
         <div class="plate counters"><div class="counter" id="shop-gold"></div><button class="btn quiet small" id="reroll"></button></div>
       </div>
       <div id="tags"></div>
-      <div class="keeper" id="keeper-line"></div>
-      <div class="plate gear" id="gear"></div>
+      <div class="shop-bottom"><div class="keeper" id="keeper-line"></div><div class="plate gear" id="gear"></div></div>
       <div class="shop-nav">
         <button class="btn quiet small" id="s-lib">← Library</button><button class="btn gold small" id="s-desk">Binding Desk</button>
       </div>`;
@@ -230,6 +229,13 @@ export const shopScreen: Screen = {
       t.style.display = p.visible && r.shop.stock[i] ? '' : 'none';
     });
     if (sayTimer > 0) { sayTimer -= dt; if (sayTimer <= 0) { const k = $('#keeper-line'); if (k) k.innerHTML = ''; } }
+    // on short screens the speech can still reach the price tags: fade it rather than cover them
+    const k = document.getElementById('keeper-line');
+    if (k && k.firstChild) {
+      const kr = k.getBoundingClientRect();
+      const hit = tags.some(t => { if (t.style.display === 'none') return false; const tr = t.getBoundingClientRect(); return tr.right > kr.left && tr.left < kr.right && tr.bottom > kr.top && tr.top < kr.bottom; });
+      k.classList.toggle('shy', hit);
+    }
   },
 };
 
