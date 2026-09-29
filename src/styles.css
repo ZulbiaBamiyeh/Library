@@ -33,6 +33,7 @@ button:focus-visible, [tabindex]:focus-visible, select:focus-visible { outline: 
 #fade { position: fixed; inset: 0; background: #0a0810; opacity: 0; pointer-events: none; transition: opacity .35s ease; z-index: 90; }
 #fade.on { opacity: 1; }
 #fade.portal { background: radial-gradient(circle at 50% 50%, #3a1a5a, #0a0612 70%); transition: opacity .32s ease; }
+#bd-peek { position: fixed; z-index: 60; width: min(320px, 80vw); pointer-events: none; box-shadow: 0 18px 44px rgba(0,0,0,.6); animation: pop .15s ease-out; }
 #bd.closed { opacity: 0; pointer-events: none; transform: scale(1.02); }
 #study-tip { position: fixed; transform: translate(-50%, -150%); background: rgba(18,12,10,.85); border: 1px solid rgba(201,161,59,.4); color: var(--text); font-family: var(--serif); font-size: 16px; padding: 4px 10px; border-radius: 6px; pointer-events: none; white-space: nowrap; z-index: 5; }
 

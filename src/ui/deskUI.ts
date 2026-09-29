@@ -160,6 +160,7 @@ function render() {
     ${sel && slotGet(r, sel) ? `<div class="bd-box bd-info">${infoHtml()}</div>` : ''}</section>`;
   h += `</main>`;
   d.innerHTML = h;
+  document.getElementById('bd-peek')?.classList.add('hidden'); peekKey = '';
   born = false;
   wire();
 }
@@ -262,7 +263,40 @@ function onDown(e: PointerEvent) {
   if (!slotGet(run!, ref)) return;
   drag = { ref, x: e.clientX, y: e.clientY, ghost: null, id: e.pointerId, src: el };
 }
+// ----- hover a spell (in the tome, the satchel, the altar or the list of bindings) to read what it does -----
+let peekKey = '';
+function peek(e: PointerEvent) {
+  const card = document.getElementById('bd-peek');
+  if (!card) return;
+  const hide = () => { card.classList.add('hidden'); peekKey = ''; };
+  if (drag?.ghost || e.pointerType !== 'mouse') { hide(); return; }
+  const t = e.target as HTMLElement;
+  const slot = t.closest('[data-w]') as HTMLElement | null, cand = t.closest('[data-cand]') as HTMLElement | null;
+  let inst: SpellInst | null = null, sealed = false, key = '', anchor: HTMLElement | null = null;
+  if (slot) {
+    inst = slotGet(run!, { where: slot.dataset.w as Ref['where'], i: +slot.dataset.i! });
+    key = 's' + slot.dataset.w + slot.dataset.i; anchor = slot;
+  } else if (cand) {
+    // what this binding would make
+    const r = run!, [w, i] = cand.dataset.cand!.split(':');
+    const o = slotGet(r, { where: w as Ref['where'], i: +i });
+    if (o) {
+      inst = r.desk.base ? fuse(r.desk.base, o, 0) : fuse(o, r.desk.inf!, 0);
+      sealed = discoveriesOf(resolveSpell(inst)).some(id => !isFound(id));
+      key = 'c' + cand.dataset.cand; anchor = cand;
+    }
+  }
+  if (!inst || !anchor) { hide(); return; }
+  if (key !== peekKey) { card.innerHTML = spellDetail(inst, sealed); card.className = `preview ${sealed ? 'sealed' : ''}`; peekKey = key; }
+  // beside the thing, on whichever side has room
+  const rc = anchor.getBoundingClientRect(), cw = card.offsetWidth || 300, ch = card.offsetHeight || 200;
+  const x = rc.right + 12 + cw < window.innerWidth ? rc.right + 12 : Math.max(8, rc.left - 12 - cw);
+  const y = Math.max(8, Math.min(window.innerHeight - ch - 8, rc.top + rc.height / 2 - ch / 2));
+  card.style.left = x + 'px'; card.style.top = y + 'px';
+}
+
 function onMove(e: PointerEvent) {
+  peek(e);
   if (!drag || e.pointerId !== drag.id) return;
   if (!drag.ghost) {
     if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 7) return;
@@ -485,11 +519,12 @@ export const deskScreen: Screen = {
     ui().innerHTML = `<div id="study-hud"><div id="crosshair"></div>
         <div id="look-prompt" class="hidden">Click to look around · WASD walk · click the desk to bind · the door leads back · Esc frees the mouse</div>
         <div id="joystick" class="${COARSE ? '' : 'hidden'}"><div class="knob"></div></div></div>
-      <div id="study-tip" class="hidden"></div><div id="bd" class="closed"></div>`;
+      <div id="study-tip" class="hidden"></div><div id="bd" class="closed"></div><div id="bd-peek" class="preview hidden"></div>`;
     sel = null;
     tab = 'bind';
     const d = $('#bd');
     for (const [k, f] of listeners) d.addEventListener(k, f);
+    d.addEventListener('pointerleave', () => { document.getElementById('bd-peek')?.classList.add('hidden'); peekKey = ''; });
     wireStudy();
   },
   tick() {
