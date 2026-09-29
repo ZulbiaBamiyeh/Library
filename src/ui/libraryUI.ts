@@ -29,11 +29,15 @@ function bookContents(d: number, i: number): Contents {
   const b = app.library.book(d, i);
   const rng = mulberry32(hashStr(d ? `${r.id}:${r.round}:d${d}:${i}:c` : `${r.id}:${r.round}:${i}:c`));
   // below the Reading Room the shelves are jumbled, the books rarer, and the oldest spells turn up
-  let pool: SpellDef[] = b.chained ? LIBRARY_SPELLS.filter(s => s.rarity >= 1) : LIBRARY_SPELLS.filter(s => d >= 2 || s.school === b.school);
+  // each wing keeps to its school; deeper down, rarer strays from other schools creep onto the shelves,
+  // and the oldest spells hide in far-off wings and little alcoves
+  let pool: SpellDef[] = b.chained ? LIBRARY_SPELLS.filter(s => s.rarity >= 1) : LIBRARY_SPELLS.filter(s => s.school === b.school || (d >= 2 && s.rarity >= 1));
   if (d) pool = pool.concat(SPELL_LIST.filter(s => s.depth && s.depth <= d));
   const base = b.chained ? [0, 1, 1.4] : [[1, 0.25, 0.06], [1, 0.7, 0.2], [0.6, 1, 0.6]][b.size];
   const wts = [base[0] * Math.max(0.08, 1 - 0.3 * d), base[1] * (1 + 0.4 * d), base[2] * (1 + 0.8 * d)];
-  const weight = (x: SpellDef) => x.depth ? (0.2 + 0.4 * (d - x.depth)) * (b.chained || b.glowing ? 2 : 1) * (d >= 2 ? 1.6 : 1) : (wts[x.rarity] || 0.01);
+  const stray = (x: SpellDef) => (b.chained || x.school === b.school ? 1 : 0.2);
+  const hidden = (1 + 2.5 * b.far * b.far) * (b.nook ? 3 : 1);
+  const weight = (x: SpellDef) => x.depth ? 0.12 * (1 + 0.4 * (d - x.depth)) * hidden * (b.chained || b.glowing ? 2 : 1) : (wts[x.rarity] || 0.01) * stray(x);
   const spells: string[] = [];
   const count = b.glowing ? 2 : 3;
   for (let k = 0; k < count && pool.length; k++) {
@@ -64,7 +68,7 @@ function renderHud() {
   let books = ''; for (let i = 0; i < 3; i++) books += `<span class="ico-book ${i < 3 - r.lib.borrows ? 'used' : ''}"></span>`;
   let candles = ''; for (let i = 0; i < 5; i++) candles += `<span class="ico-candle ${i < 5 - r.lib.candles ? 'used' : ''}"></span>`;
   const d = app.library.level;
-  $('#lib-round').innerHTML = `Round ${r.round}<small>${pips(r.wins, r.losses)}</small><small>${r.wins} wins, ${r.losses} of 4 losses</small><small class="lvl-name">${d ? `${d} floor${d > 1 ? 's' : ''} down · ` : ''}${LEVELS[d].name}</small>`;
+  $('#lib-round').innerHTML = `Round ${r.round}<small>${pips(r.wins, r.losses)}</small><small>${r.wins} wins, ${r.losses} of 4 losses</small>`;
   $('#lib-counters').innerHTML = `<div class="counter" title="Gold for the Curio Shop">${goldHtml(r.gold)}</div>
     <div class="counter" title="Books you can still borrow"><span class="icons">${books}</span><span>${r.lib.borrows} to borrow</span></div>
     <div class="counter" title="Candles: each lets you peek inside one book"><span class="icons">${candles}</span></div>`;
@@ -81,8 +85,8 @@ function renderHud() {
   });
   const hintEl = $('#lib-hint');
   hintEl.textContent = COARSE ? 'Drag to look, use the stick to walk, tap a book to open it. The shop is east, the Duelling Ring west, and the stairwell north goes down.' : 'Mouse to look, WASD to walk, Space to jump, Shift to run, click a book to open it. Shop east, Duelling Ring west; the stairwell in the north aisle goes down, or jump in.';
-  if (d > 0) hintEl.textContent = `${LEVELS[d].sub}. The stair climbs back up the way you came.`;
   if (r.lib.borrows === 0) hintEl.textContent = 'You have borrowed three books. Visit the Curio Shop, or go to the Binding Desk.';
+  hintEl.style.display = d > 0 ? 'none' : ''; // no captions below the Reading Room
 }
 
 function confirmBurn(i: number) {
@@ -111,7 +115,7 @@ function openBook(d: number, i: number) {
   const spine = b.chained ? '#2c2c32' : ESS[b.school].spine;
   let h = `<div class="book-card" role="dialog" aria-label="${esc(b.title)}" style="--school:${spine}"><div class="spine"></div><div class="body">
     <h2>${esc(b.title)}</h2>
-    <div class="meta">${SIZE_WORD[b.size]} bound in ${b.chained ? 'iron chains' : ESS[b.school].school.toLowerCase() + ' colours'}${b.glowing ? ', faintly glowing' : ''}.${d ? ` Found in ${LEVELS[d].name}.` : ''}</div>`;
+    <div class="meta">${SIZE_WORD[b.size]} bound in ${b.chained ? 'iron chains' : ESS[b.school].school.toLowerCase() + ' colours'}${b.glowing ? ', faintly glowing' : ''}.</div>`;
   if (b.chained && !peeked) h += `<div class="warn">A forbidden book. Opening it puts 2 Hex on you at the start of your next duel.</div>`;
   if (!c) {
     h += `<div class="actions" style="margin-top:16px">
@@ -163,17 +167,14 @@ function borrow(d: number, i: number, id: string) {
   else toast(`${SPELLS[id].name} added to your satchel.`);
   L.borrows--; L.taken[keyOf(d, i)] = true; app.library.hideBook(d, i);
   saveRun(); closeModal(); renderHud();
-  if (SPELLS[id].depth) toast(`${SPELLS[id].name}: an ancient spell, older than the library.`, true);
 }
 
 // ----- arriving on a floor -----
 function onFloor(d: number) {
   const r = run!;
   renderHud();
-  if (d > (r.lib.depth || 0)) {
-    r.lib.depth = d; saveRun();
-    toast(`${LEVELS[d].name}. ${LEVELS[d].sub}.`, true);
-  }
+  // the deepest floor reached is remembered, but nothing announces where you are
+  if (d > (r.lib.depth || 0)) { r.lib.depth = d; saveRun(); }
 }
 
 // ----- the Duelling Ring, through the west arch -----
