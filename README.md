@@ -28,9 +28,9 @@ A run is a series of rounds and ends at 10 wins or 4 losses. You start with a si
 1. **The Library** (first person). Spine colour tells the school; thickness hints at rarity; chained books are forbidden (2 Hex at your next duel); glowing books hold a Codex hint. Spend candles to peek, borrow three books. Thick and chained books can hold reagents. Borrowing a spell you own upgrades it to Silver, then Gold.
 2. **Curios & Oddments**, through the lit door in the east wall. Madame Verdigris sells one staff and four trinkets each round, plus two reagents. You hold one staff and 2–4 trinkets (more slots at rounds 3 and 6), with a small stash. Sell for half price, reroll the counter for a fee.
 3. **The Binding Desk.** One screen: your tome on the left, the binding altar in the middle, the satchel on the right. Drag a spell onto Base (what it *is*) and another onto Infusion (what it's *made of*); the infusion is used up. With only one slot filled, the altar lists what every spell you own would make (undiscovered compounds and legendaries show as ???). Two bindings a round (three from round 6). Reagents apply to the base. Drag works with mouse and touch; tapping a spell and then a slot works too.
-4. **The Duel.** A deterministic simulation plays out on a top-down board: projectiles, summons, fields, curse sigils, reactions and legendary callouts. Pause, ½×, 1×, 2×, 4× or skip.
+4. **The Duel.** Walk through the glowing arch in the library's west wall (or use the Duelling Ring button, or the desk's duel button). A deterministic simulation plays out on a top-down board: projectiles, summons, fields, curse sigils, reactions and legendary callouts. Pause, ½×, 1×, 2×, 4× or skip. The result sheet breaks down damage dealt, damage taken and healing by source (spell, summon, status, curse, field, reaction or curio), for you and for your opponent.
 
-Controls in the library: drag to look, WASD or arrows to walk (a virtual stick on touch), click a book to open it. Walk into the lit doorway or use the button to enter the shop. Space pauses a duel.
+Controls in the library: drag to look, WASD or arrows to walk (a virtual stick on touch), click a book to open it. Walk into the lit doorway in the east wall to enter the shop, or through the arch in the west wall to duel. Space pauses a duel.
 
 ## Spells and combos
 

@@ -446,3 +446,25 @@ button:focus-visible, [tabindex]:focus-visible, select:focus-visible { outline: 
 .book-card .actions .btn.quiet { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1px rgba(43,34,54,.4); backdrop-filter: none; }
 .sheet .pip, .book-card .pip { border-color: rgba(43,34,54,.35); }
 @media (max-width: 760px) { #mute { left: auto; right: 8px; transform: none; bottom: auto; top: calc(var(--safe-t) + 4px); padding: 2px 8px; font-size: 11px; } }
+
+/* ---------- damage breakdown on the result sheet ---------- */
+.sheet.wide { width: min(94vw, 620px); }
+.brk { margin-top: 16px; background: rgba(255,255,255,.28); border-radius: 5px; padding: 10px 12px 12px; }
+.brk-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.brk-tabs, .brk-whos { display: flex; gap: 2px; background: rgba(43,34,54,.1); border-radius: 4px; padding: 2px; }
+.brk-tab, .brk-who { border: 0; background: transparent; color: rgba(43,34,54,.75); font-size: 13px; font-weight: 700; padding: 5px 10px; border-radius: 3px; }
+.brk-tab.on, .brk-who.on { background: var(--ink); color: var(--vellum); }
+.brk-rows { display: grid; gap: 5px; min-height: 60px; }
+.brk-row { display: grid; grid-template-columns: minmax(0, 11em) 1fr 4.2em; align-items: center; gap: 10px; font-size: 14px; }
+.brk-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+.brk-name small { margin-left: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: rgba(43,34,54,.55); font-weight: 700; }
+.brk-bar { height: 12px; background: rgba(43,34,54,.08); border-radius: 3px; overflow: hidden; }
+.brk-bar i { display: block; height: 100%; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(43,34,54,.25); filter: saturate(.9) brightness(.85); transform-origin: left; animation: brkgrow .5s ease-out; }
+.brk-num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
+.brk-num small { display: block; font-size: 11px; font-weight: 500; color: rgba(43,34,54,.6); line-height: 1; }
+.brk-empty { margin: 8px 0; font-size: 14px; color: rgba(43,34,54,.65); }
+@keyframes brkgrow { from { transform: scaleX(0); } }
+@media (max-width: 480px) { .brk-row { grid-template-columns: minmax(0, 8em) 1fr 3.6em; gap: 6px; font-size: 13px; } .brk-name small { display: none; } }
+@media (prefers-reduced-motion: reduce) { .brk-bar i { animation: none; } }
+.nav-btns .btn { white-space: nowrap; }
+@media (max-width: 520px) { .nav-btns .nl { display: none; } }

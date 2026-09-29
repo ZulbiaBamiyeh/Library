@@ -1,4 +1,4 @@
-// The library, walked in first person. The Curio Shop opens off its east wall.
+// The library, walked in first person. The Curio Shop opens off its east wall, the Duelling Ring off its west.
 import * as THREE from 'three';
 import type { View } from './engine';
 import { ESS, SCHOOL_ORDER, type Essence } from '../data/spells';
@@ -29,7 +29,7 @@ const TITLE_WORDS: Record<Essence, string[]> = {
 };
 const TITLE_FORMS = ['On {x}', 'A Treatise on {x}', '{x}, Annotated', 'Notes toward {x}', 'The Lesser Book of {x}', 'Concerning {x}', '{x}: a Primer'];
 
-export type Pick = { kind: 'book'; i: number } | { kind: 'door' } | { kind: 'desk' } | null;
+export type Pick = { kind: 'book'; i: number } | { kind: 'door' } | { kind: 'desk' } | { kind: 'arena' } | null;
 
 export class Library implements View {
   scene = new THREE.Scene();
@@ -56,6 +56,11 @@ export class Library implements View {
   doorGlow: THREE.Sprite;
   desk: THREE.Group;
   deskPick: THREE.Mesh;
+  arena: THREE.Mesh;
+  arenaMat: THREE.ShaderMaterial;
+  arenaGlow: THREE.Sprite;
+  arenaLight: THREE.PointLight;
+  arenaRunes: THREE.MeshBasicMaterial;
   taken: Record<number, boolean> = {};
   hover: Pick = null;
   raycaster = new THREE.Raycaster();
@@ -78,7 +83,7 @@ export class Library implements View {
     rug2.rotation.set(-Math.PI / 2, 0, Math.PI / 2); rug2.position.set(5.9, 0.013, 0); S.add(rug2);
     const pl = plasterTex(5, [70, 58, 70]); pl.repeat.set(4, 1.5);
     const wallMat = new THREE.MeshStandardMaterial({ map: pl, roughness: 0.95 });
-    for (const [x, z, ry] of [[0, -R, 0], [0, R, Math.PI], [-R, 0, Math.PI / 2]] as const) {
+    for (const [x, z, ry] of [[0, -R, 0], [0, R, Math.PI]] as const) {
       const w = new THREE.Mesh(new THREE.PlaneGeometry(2 * R, H), wallMat); w.position.set(x, H / 2, z); w.rotation.y = ry; S.add(w);
     }
     // east wall with a doorway to the Curio Shop
@@ -105,6 +110,63 @@ export class Library implements View {
     const signTex = new THREE.CanvasTexture(sc); signTex.colorSpace = THREE.SRGBColorSpace;
     const sign = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.8), new THREE.MeshStandardMaterial({ map: signTex, emissive: new THREE.Color('#ffd080'), emissiveIntensity: 0.25, emissiveMap: signTex }));
     sign.position.set(R - 0.45, doorH + 0.9, 0); sign.rotation.y = -Math.PI / 2; S.add(sign);
+    // west wall with a stone arch into the Duelling Ring
+    for (const [z, y, w, h] of eastParts) {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), wallMat); m.position.set(-R, y, -z); m.rotation.y = Math.PI / 2; S.add(m);
+    }
+    const stone = new THREE.MeshStandardMaterial({ color: '#4a4452', roughness: 0.9, flatShading: true });
+    for (const z of [-doorW / 2 - 0.25, doorW / 2 + 0.25]) {
+      const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.6, doorH, 0.5), stone); pillar.position.set(-R + 0.1, doorH / 2, z); S.add(pillar);
+      const cap = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.25, 0.65), stone); cap.position.set(-R + 0.1, 0.12, z); S.add(cap);
+    }
+    const arch = new THREE.Mesh(new THREE.TorusGeometry(doorW / 2 + 0.25, 0.28, 6, 18, Math.PI), stone);
+    arch.rotation.y = Math.PI / 2; arch.position.set(-R + 0.1, doorH, 0); S.add(arch);
+    this.arenaRunes = new THREE.MeshBasicMaterial({ color: '#7fe0d0', transparent: true, opacity: 0.8 });
+    for (let i = 0; i < 9; i++) {
+      const a = (i / 8) * Math.PI;
+      const rune = new THREE.Mesh(new THREE.CircleGeometry(0.09, 3 + (i % 3)), this.arenaRunes);
+      rune.position.set(-R + 0.42, doorH + Math.sin(a) * (doorW / 2 + 0.25), Math.cos(a) * (doorW / 2 + 0.25)); rune.rotation.y = Math.PI / 2; S.add(rune);
+    }
+    for (const z of [-doorW / 2 - 0.25, doorW / 2 + 0.25]) for (let k = 0; k < 4; k++) {
+      const rune = new THREE.Mesh(new THREE.CircleGeometry(0.08, 3 + k), this.arenaRunes);
+      rune.position.set(-R + 0.42, 0.8 + k * 0.9, z); rune.rotation.y = Math.PI / 2; S.add(rune);
+    }
+    // the ring itself, a swirl of verdigris and violet light filling the arch
+    this.arenaMat = new THREE.ShaderMaterial({
+      uniforms: { uTime: { value: 0 } },
+      vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+      fragmentShader: /* glsl */`
+        uniform float uTime; varying vec2 vUv;
+        void main(){
+          vec2 c = (vUv - vec2(0.5, 0.42)) * vec2(1.0, 1.35);
+          float r = length(c), a = atan(c.y, c.x);
+          float sw = sin(a * 5.0 + r * 18.0 - uTime * 2.2) * 0.5 + 0.5;
+          float sw2 = sin(a * 3.0 - r * 11.0 + uTime * 1.3) * 0.5 + 0.5;
+          vec3 teal = vec3(0.3, 0.88, 0.8), violet = vec3(0.55, 0.3, 0.95), core = vec3(0.95, 0.98, 1.0);
+          vec3 col = mix(violet, teal, sw) * (0.35 + 0.65 * sw2);
+          col = mix(col, core, smoothstep(0.2, 0.0, r) * 0.6);
+          float edge = smoothstep(0.62, 0.35, r);
+          gl_FragColor = vec4(col * (0.3 + 0.45 * edge), 0.3 + 0.7 * edge);
+        }`,
+      transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    });
+    this.arena = new THREE.Mesh(new THREE.PlaneGeometry(doorW, doorH + 1.0), this.arenaMat);
+    this.arena.position.set(-R - 0.3, (doorH + 1.0) / 2, 0); this.arena.rotation.y = Math.PI / 2; S.add(this.arena);
+    this.arenaGlow = glowSprite('#7fe0d0', 6, 0.3); this.arenaGlow.position.set(-R + 0.3, 2.2, 0); S.add(this.arenaGlow);
+    this.arenaLight = new THREE.PointLight('#8ac8ff', 26, 12, 1.6); this.arenaLight.position.set(-R + 1.3, 2.6, 0); S.add(this.arenaLight);
+    {
+      const [ac, ax] = canvas(512, 160);
+      ax.fillStyle = '#1c1826'; ax.fillRect(0, 0, 512, 160);
+      ax.strokeStyle = '#7fe0d0'; ax.lineWidth = 8; ax.strokeRect(10, 10, 492, 140);
+      ax.fillStyle = '#d8fff6'; ax.font = 'italic 62px "IM Fell English", Georgia, serif'; ax.textAlign = 'center'; ax.textBaseline = 'middle';
+      ax.fillText('The Duelling Ring', 256, 84);
+      const t = new THREE.CanvasTexture(ac); t.colorSpace = THREE.SRGBColorSpace;
+      const plate = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.8), new THREE.MeshStandardMaterial({ map: t, emissive: new THREE.Color('#9fe3d6'), emissiveIntensity: 0.35, emissiveMap: t }));
+      plate.position.set(-R + 0.45, doorH + 1.35, 0); plate.rotation.y = Math.PI / 2; S.add(plate);
+    }
+    const rug3 = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 7.4), new THREE.MeshStandardMaterial({ map: rugTex(), roughness: 1 }));
+    rug3.rotation.set(-Math.PI / 2, 0, Math.PI / 2); rug3.position.set(-5.9, 0.013, 0); S.add(rug3);
+
     const ceil = new THREE.Mesh(new THREE.PlaneGeometry(2 * R, 2 * R), new THREE.MeshStandardMaterial({ color: '#150f14', roughness: 1 }));
     ceil.rotation.x = Math.PI / 2; ceil.position.y = H; S.add(ceil);
     for (let i = -3; i <= 3; i++) { const beam = new THREE.Mesh(new THREE.BoxGeometry(2 * R, 0.4, 0.35), wood); beam.position.set(0, H - 0.2, i * 3); S.add(beam); }
@@ -116,7 +178,7 @@ export class Library implements View {
       faces.push({ c: new THREE.Vector3(x, 0, -R + 0.35), ry: 0, rows: 5, wall: true, unit: 'n' + i });
       faces.push({ c: new THREE.Vector3(-x, 0, R - 0.35), ry: Math.PI, rows: 5, wall: true, unit: 's' + i });
       if (Math.abs(x) > 2) faces.push({ c: new THREE.Vector3(R - 0.35, 0, x), ry: -Math.PI / 2, rows: 5, wall: true, unit: 'e' + i });
-      faces.push({ c: new THREE.Vector3(-R + 0.35, 0, -x), ry: Math.PI / 2, rows: 5, wall: true, unit: 'w' + i });
+      if (Math.abs(x) > 2) faces.push({ c: new THREE.Vector3(-R + 0.35, 0, -x), ry: Math.PI / 2, rows: 5, wall: true, unit: 'w' + i });
     });
     [-4, 1.8].forEach((z, ri) => [-5.2, -2, 2, 5.2].forEach((x, i) => {
       if (ri === 1 && x === 5.2) return; // keep the path to the shop clear
@@ -167,7 +229,7 @@ export class Library implements View {
     // candle stands
     const iron = new THREE.MeshStandardMaterial({ color: '#2c2420', metalness: 0.6, roughness: 0.5 });
     const wax = new THREE.MeshStandardMaterial({ color: '#eae0c2', emissive: new THREE.Color('#332a18'), roughness: 0.6 });
-    [[-6.5, -7], [6.5, -7], [-6.5, 6.5], [6.5, 6.8], [-7.5, -0.7], [0, -1.3]].forEach(([x, z], i) => {
+    [[-6.5, -7], [6.5, -7], [-6.5, 6.5], [6.5, 6.8], [-7.6, -2.6], [0, -1.3]].forEach(([x, z], i) => {
       const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.14, 1.3, 8), iron); stand.position.set(x, 0.65, z); S.add(stand);
       for (const dx of [-0.12, 0, 0.12]) {
         const candle = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.22 + Math.abs(dx), 8), wax); candle.position.set(x + dx, 1.42 + Math.abs(dx) / 2, z); S.add(candle);
@@ -264,7 +326,7 @@ export class Library implements View {
   collide(p: THREE.Vector3) {
     const r = 0.35;
     const inDoor = Math.abs(p.z) < 1.3;
-    p.x = Math.max(-R + 0.95, Math.min(inDoor ? R + 0.5 : R - 0.95, p.x));
+    p.x = Math.max(inDoor ? -R - 0.5 : -R + 0.95, Math.min(inDoor ? R + 0.5 : R - 0.95, p.x));
     p.z = Math.max(-R + 0.95, Math.min(R - 0.95, p.z));
     for (const c of this.colliders) {
       const x0 = c.x0 - r, x1 = c.x1 + r, z0 = c.z0 - r, z1 = c.z1 + r;
@@ -277,6 +339,8 @@ export class Library implements View {
 
   // true when the reader walks into the shop doorway
   atDoor() { return this.pos.x > R - 0.6 && Math.abs(this.pos.z) < 1.3; }
+  // true when the reader steps into the Duelling Ring's arch
+  atArena() { return this.pos.x < -R + 0.6 && Math.abs(this.pos.z) < 1.3; }
 
   // Try the exact point first, then a few nearby points, so clicks in the gap above a row still find a book.
   pick(clientX: number, clientY: number): Pick {
@@ -291,7 +355,7 @@ export class Library implements View {
     const v = new THREE.Vector2((clientX / window.innerWidth) * 2 - 1, -(clientY / window.innerHeight) * 2 + 1);
     this.raycaster.setFromCamera(v, this.camera);
     this.raycaster.far = 7;
-    const hits = this.raycaster.intersectObjects([this.bookMesh, this.door, this.deskPick], false);
+    const hits = this.raycaster.intersectObjects([this.bookMesh, this.door, this.deskPick, this.arena], false);
     for (const h of hits) {
       if (h.object === this.bookMesh && h.instanceId !== undefined) {
         if (this.taken[h.instanceId] || h.distance > 5.5) continue;
@@ -299,6 +363,7 @@ export class Library implements View {
       }
       if (h.object === this.door) return { kind: 'door' };
       if (h.object === this.deskPick) return { kind: 'desk' };
+      if (h.object === this.arena) return { kind: 'arena' };
     }
     return null;
   }
@@ -335,6 +400,11 @@ export class Library implements View {
     this.flames.forEach((f, i) => { const s = 0.38 + Math.sin(time * 9 + i) * 0.04; f.scale.set(s * 0.7, s, s); });
     this.glows.forEach(g => { (g.material as THREE.SpriteMaterial).opacity = 0.35 + Math.sin(time * 2 + (g.userData.phase as number)) * 0.2; });
     (this.doorGlow.material as THREE.SpriteMaterial).opacity = 0.45 + Math.sin(time * 1.7) * 0.08;
+    this.arenaMat.uniforms.uTime.value = time;
+    (this.arenaGlow.material as THREE.SpriteMaterial).opacity = 0.26 + Math.sin(time * 1.3) * 0.06;
+    this.arenaLight.intensity = 24 + Math.sin(time * 2.3) * 4;
+    this.arenaRunes.opacity = 0.6 + Math.sin(time * 3) * 0.3;
+    if (Math.random() < 0.5) this.motes.emit({ x: -R + 0.3 + Math.random() * 2, y: 0.4 + Math.random() * 3.6, z: (Math.random() - 0.5) * 2.6, vx: 0.35, color: Math.random() < 0.5 ? '#7fe0d0' : '#b89aff', size: 0.06, life: 4, drag: 0, jitter: 0.3, alpha: 0.8 });
     if (Math.random() < 0.3) { const p = this.candlePos[Math.floor(Math.random() * this.candlePos.length)]; this.embers.emit({ x: p.x, y: p.y + 0.1, z: p.z, vy: 0.4, color: '#ffc070', size: 0.04, life: 1.2, jitter: 0.6 }); }
     if (Math.random() < 0.4) this.motes.emit({ x: (Math.random() - 0.5) * 18, y: Math.random() * 5, z: (Math.random() - 0.5) * 18, color: '#ffe2b0', size: 0.05 + Math.random() * 0.05, life: 4 + Math.random() * 5, drag: 0, jitter: 0.25, alpha: 0.7 });
     if (Math.random() < 0.5) this.motes.emit({ x: R - 0.5 - Math.random() * 3, y: 0.5 + Math.random() * 3, z: (Math.random() - 0.5) * 2.6, vx: -0.3, color: '#ffc080', size: 0.06, life: 4, drag: 0, jitter: 0.3, alpha: 0.8 });

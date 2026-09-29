@@ -71,7 +71,7 @@ function renderHud() {
     sat.appendChild(b);
   });
   const hintEl = $('#lib-hint');
-  hintEl.textContent = COARSE ? 'Drag to look, use the stick to walk, tap a book to open it.' : 'Drag to look, WASD to walk, click a book to open it. The Curio Shop is through the lit door.';
+  hintEl.textContent = COARSE ? 'Drag to look, use the stick to walk, tap a book to open it. The shop is east, the Duelling Ring west.' : 'Drag to look, WASD to walk, click a book to open it. The Curio Shop is through the east door; walk through the west arch to duel.';
   if (r.lib.borrows === 0) hintEl.textContent = 'You have borrowed three books. Visit the Curio Shop, or go to the Binding Desk.';
 }
 
@@ -155,6 +155,32 @@ function borrow(i: number, id: string) {
   saveRun(); closeModal(); renderHud();
 }
 
+// ----- the Duelling Ring, through the west arch -----
+function enterRing() {
+  const r = run!, lib = app.library;
+  if (lib.atArena()) { lib.pos.x = -8.4; lib.keys = {}; lib.joy = { x: 0, y: 0 }; }
+  if (!r.lines.some(Boolean)) {
+    toast('Your tome is blank. Write at least one spell on a line at the Binding Desk first.');
+    return;
+  }
+  const notes: string[] = [];
+  if (r.lib.borrows > 0) notes.push(`You can still borrow ${r.lib.borrows} book${r.lib.borrows > 1 ? 's' : ''}.`);
+  const loose = [r.desk.base, r.desk.inf].filter(Boolean);
+  if (loose.length) notes.push(`${loose.map(x => esc(resolveSpell(x!).name)).join(' and ')} ${loose.length > 1 ? 'are' : 'is'} on the altar, not in your tome.`);
+  const empty = r.lines.filter(l => !l).length, spare = r.satchel.filter(Boolean).length;
+  if (empty && spare) notes.push(`${empty} line${empty > 1 ? 's' : ''} of your tome ${empty > 1 ? 'are' : 'is'} blank, and your satchel holds ${spare} spell${spare > 1 ? 's' : ''}.`);
+  if (r.bindings > 0 && spare + r.lines.filter(Boolean).length >= 2) notes.push(`${r.bindings} binding${r.bindings > 1 ? 's' : ''} left this round.`);
+  const opp = r.opponent;
+  showModal(`<div class="sheet" role="dialog" aria-label="The Duelling Ring"><h2 style="font-size:30px">The Duelling Ring</h2>
+    <p class="lead">${opp ? `<b>${esc(opp.name)}</b>${opp.title ? ` (${esc(opp.title)})` : ''} waits in the circle.` : 'A ghost waits in the circle.'} Once you step through, the round is fought.</p>
+    ${notes.length ? `<ul class="warn" style="margin-top:10px">${notes.map(n => `<li>${n}</li>`).join('')}</ul>` : ''}
+    <div class="actions"><button class="btn gold" id="m-ring">Step into the Ring</button><button class="btn quiet" id="m-desk">Binding Desk</button><button class="btn quiet" id="m-stay">Not yet</button></div></div>`);
+  play('door');
+  $('#m-ring').onclick = () => { closeModal(); app.go('duel'); };
+  $('#m-desk').onclick = () => { closeModal(); app.go('desk'); };
+  $('#m-stay').onclick = closeModal;
+}
+
 // ----- input -----
 const input = { down: false, id: -1, lx: 0, ly: 0, t0: 0, moved: 0 };
 let handlers: { t: EventTarget; k: string; f: EventListener }[] = [];
@@ -178,10 +204,11 @@ export const libraryScreen: Screen = {
       <div id="hover-tip" class="hidden"></div>
       <div class="lib-bottom">
         <div class="plate satchel"><div class="satchel-label">Satchel · tap a spell to burn it</div><div class="satchel-row" id="lib-satchel"></div></div>
-        <div class="nav-btns"><button class="btn quiet" id="to-shop">Curio Shop →</button><button class="btn gold" id="to-desk">Binding Desk</button></div>
+        <div class="nav-btns"><button class="btn quiet" id="to-ring" aria-label="Duelling Ring">← <span class="nl">Duelling </span>Ring</button><button class="btn quiet" id="to-shop" aria-label="Curio Shop"><span class="nl">Curio </span>Shop →</button><button class="btn gold" id="to-desk" aria-label="Binding Desk"><span class="nl">Binding </span>Desk</button></div>
       </div>`;
     renderHud();
     $('#to-shop').onclick = () => app.go('shop');
+    $('#to-ring').onclick = enterRing;
     $('#to-desk').onclick = () => app.go('desk');
     const canvas = app.engine.renderer.domElement;
     const active = () => app.screen === 'library' && !modalOpen();
@@ -202,7 +229,7 @@ export const libraryScreen: Screen = {
         lib.setHover(p);
         const tip = $('#hover-tip');
         if (p) {
-          tip.textContent = p.kind === 'book' ? lib.books[p.i].title : p.kind === 'door' ? 'Curios & Oddments' : 'The Binding Desk';
+          tip.textContent = p.kind === 'book' ? lib.books[p.i].title : p.kind === 'door' ? 'Curios & Oddments' : p.kind === 'arena' ? 'The Duelling Ring' : 'The Binding Desk';
           tip.style.left = e.clientX + 'px'; tip.style.top = e.clientY + 'px'; tip.classList.remove('hidden');
           canvas.style.cursor = 'pointer';
         } else { tip.classList.add('hidden'); canvas.style.cursor = 'grab'; }
@@ -216,6 +243,7 @@ export const libraryScreen: Screen = {
         if (p?.kind === 'book') openBook(p.i);
         else if (p?.kind === 'door') app.go('shop');
         else if (p?.kind === 'desk') app.go('desk');
+        else if (p?.kind === 'arena') enterRing();
       }
     }) as EventListener);
     on(window, 'keydown', ((e: KeyboardEvent) => {
@@ -250,5 +278,6 @@ export const libraryScreen: Screen = {
   },
   tick() {
     if (app.library.atDoor() && !modalOpen()) { app.library.pos.x = 8.6; app.go('shop'); }
+    if (app.library.atArena() && !modalOpen()) enterRing();
   },
 };

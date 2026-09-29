@@ -5,7 +5,7 @@ import { $, closeModal, esc, goldHtml, pips, showModal, toast } from './dom';
 import { run, saveRun, playerTome, prepareRound, saveGhost, clearRun, store } from '../game/run';
 import { discover } from '../game/codex';
 import { runDuel } from '../sim/duel';
-import type { DuelEvent, DuelResult, Snap } from '../sim/types';
+import type { BreakdownItem, DuelEvent, DuelResult, Snap } from '../sim/types';
 import { ESS, SPELLS } from '../data/spells';
 import { ARTIFACTS } from '../data/artifacts';
 import { STATUSES, STATUS_INFO, REACTIONS } from '../data/codex';
@@ -18,6 +18,7 @@ import { castSound, impactSound, play, type Sfx } from '../audio/sfx';
 const ROBES: Record<string, string> = {
   'Affliction Warlock': '#2a0f2a', 'Imp Engine': '#6a1a12', 'Frost Lock': '#1a3050', 'Storm Conductor': '#5a4a12',
   'Trickster': '#3a1a5a', 'Holy Martyr': '#8a7a50', 'Plaguebringer': '#2a4020', 'Stone Warden': '#4a4038', 'Your own ghost': '#1a2a3a',
+  'Pyroclast': '#7a2a0a', 'Wintershade': '#1a2440', 'Chronomancer': '#3a2060', 'Tinker': '#4a3a20',
 };
 
 let res: DuelResult;
@@ -290,6 +291,50 @@ function applyResult() {
   return { won, draw, gold, over };
 }
 
+// ----- damage breakdown on the result sheet -----
+type Book = 'dealt' | 'taken' | 'healed';
+let bdSide = 0, bdBook: Book = 'dealt';
+const ART_NAMES = new Set(Object.values(ARTIFACTS).map(a => a.name));
+const KIND_NAME: Record<string, string> = { spell: 'Spell', summon: 'Summon', status: 'Status', curse: 'Curse', field: 'Field', reaction: 'Reaction', retribution: 'Aura', heal: '', other: '' };
+const KIND_COLOR: Record<string, string> = { status: '#b0603a', reaction: '#c9a13b', heal: '#3f9a6a', other: '#7a6a8a' };
+
+function breakdownRows(): string {
+  const items: BreakdownItem[] = res.breakdown[bdSide][bdBook];
+  const total = items.reduce((a, e) => a + e.amt, 0);
+  if (!total) return `<p class="brk-empty">${bdBook === 'healed' ? 'No healing.' : 'Nothing here.'}</p>`;
+  const shown = items.slice(0, 8);
+  const rest = items.slice(8);
+  if (rest.length) shown.push({ label: `${rest.length} other source${rest.length > 1 ? 's' : ''}`, amt: rest.reduce((a, e) => a + e.amt, 0), ess: null, kind: 'other' });
+  const max = Math.max(...shown.map(e => e.amt));
+  return shown.map(e => {
+    const art = ART_NAMES.has(e.label.replace(/ \(own\)$/, ''));
+    const color = e.ess ? ESS[e.ess].color : bdBook === 'healed' ? KIND_COLOR.heal : KIND_COLOR[e.kind] || KIND_COLOR.other;
+    const kind = art ? 'Curio' : bdBook === 'healed' ? '' : KIND_NAME[e.kind] ?? '';
+    return `<div class="brk-row"><div class="brk-name">${esc(e.label)}${kind ? `<small>${kind}</small>` : ''}</div>
+      <div class="brk-bar"><i style="width:${(100 * e.amt / max).toFixed(1)}%;background:${color}"></i></div>
+      <div class="brk-num">${e.amt}<small>${Math.round(100 * e.amt / total)}%</small></div></div>`;
+  }).join('');
+}
+
+function breakdownHtml(): string {
+  const tab = (b: Book, label: string) => `<button class="brk-tab ${bdBook === b ? 'on' : ''}" data-bd-book="${b}" aria-pressed="${bdBook === b}">${label}</button>`;
+  const who = (s: number, label: string) => `<button class="brk-who ${bdSide === s ? 'on' : ''}" data-bd-side="${s}" aria-pressed="${bdSide === s}">${label}</button>`;
+  return `<div class="brk" id="brk-box"><div class="brk-head"><div class="brk-tabs">${tab('dealt', 'Dealt')}${tab('taken', 'Taken')}${tab('healed', 'Healing')}</div>
+    <div class="brk-whos">${who(0, 'You')}${who(1, 'Opponent')}</div></div><div class="brk-rows" id="brk-rows">${breakdownRows()}</div></div>`;
+}
+
+function wireBreakdown() {
+  const box = document.getElementById('brk-box'); if (!box) return;
+  box.onclick = (e) => {
+    const t = (e.target as HTMLElement).closest('button') as HTMLButtonElement | null; if (!t) return;
+    if (t.dataset.bdBook) bdBook = t.dataset.bdBook as Book;
+    if (t.dataset.bdSide) bdSide = +t.dataset.bdSide;
+    box.querySelectorAll<HTMLButtonElement>('.brk-tab').forEach(b => { b.classList.toggle('on', b.dataset.bdBook === bdBook); b.setAttribute('aria-pressed', String(b.dataset.bdBook === bdBook)); });
+    box.querySelectorAll<HTMLButtonElement>('.brk-who').forEach(b => { b.classList.toggle('on', +b.dataset.bdSide! === bdSide); b.setAttribute('aria-pressed', String(+b.dataset.bdSide! === bdSide)); });
+    $('#brk-rows').innerHTML = breakdownRows();
+  };
+}
+
 function showResult() {
   if (resultShown) return;
   resultShown = true;
@@ -298,16 +343,14 @@ function showResult() {
   const out = outcome;
   const title = out.draw ? 'A draw' : out.won ? 'Victory' : 'Defeat';
   const lead = out.draw ? 'Both mages fell, or neither would.' : out.won ? `${esc(res.names[1])} closes their tome.` : `${esc(res.names[1])} reads you out of the duel.`;
-  const best = new Map<string, number>();
-  for (const c of castTotals.values()) if (c.side === 0 && c.dmg > 0) best.set(c.name, (best.get(c.name) || 0) + c.dmg);
-  const top = [...best.entries()].sort((a, b) => b[1] - a[1])[0];
+  bdSide = 0; bdBook = 'dealt';
   const endTitle = r.wins >= MAX_WINS ? 'The run is complete: ten victories.' : r.losses >= MAX_LOSSES ? 'The run is over: four defeats.' : '';
-  showModal(`<div class="sheet" role="dialog" aria-label="Result"><h2>${title}</h2><p class="lead">${lead}</p>
+  showModal(`<div class="sheet wide" role="dialog" aria-label="Result"><h2>${title}</h2><p class="lead">${lead}</p>
     <div class="result-stats">
       <div>Damage dealt<b>${res.stats.dealt[0]}</b></div><div>Damage taken<b>${res.stats.dealt[1]}</b></div>
       <div>Healing<b>${res.stats.healed[0]}</b></div><div>Gold earned<b>+${out.gold}</b></div>
     </div>
-    ${top ? `<p class="lead" style="margin-top:12px">Your best line: <b>${esc(top[0])}</b>, ${Math.round(top[1])} damage.</p>` : ''}
+    ${breakdownHtml()}
     ${newFinds.length ? `<p class="lead" style="color:#6b5310">Written into the Codex: ${newFinds.map(esc).join(', ')}.</p>` : ''}
     <p class="lead" style="margin-top:14px">Record: ${pips(r.wins, r.losses)} · ${goldHtml(r.gold).replace('gold-count', 'gold-count" style="color:#8a5a08')}</p>
     ${endTitle ? `<h4>${esc(endTitle)}</h4>` : ''}
@@ -317,6 +360,7 @@ function showResult() {
   const nw = document.getElementById('r-new');
   if (nw) nw.onclick = () => { closeModal(); clearRun(); app.go('title'); };
   $('#r-replay').onclick = () => { closeModal(); restart(); };
+  wireBreakdown();
 }
 
 function restart() {

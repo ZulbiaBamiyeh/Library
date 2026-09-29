@@ -272,6 +272,8 @@ export interface Snap {
   fields: number[];
 }
 
+export interface BreakdownItem { label: string; amt: number; ess: Essence | null; kind: string }
+
 export interface DuelResult {
   winner: number;
   duration: number;
@@ -285,4 +287,6 @@ export interface DuelResult {
   wards: [({ cond: WardCond; res: Resolved } | null)[], ({ cond: WardCond; res: Resolved } | null)[]];
   arts: [string[], string[]];
   stats: { dealt: [number, number]; healed: [number, number] };
+  // what did the damage and healing, per side, largest first
+  breakdown: [{ dealt: BreakdownItem[]; taken: BreakdownItem[]; healed: BreakdownItem[] }, { dealt: BreakdownItem[]; taken: BreakdownItem[]; healed: BreakdownItem[] }];
 }

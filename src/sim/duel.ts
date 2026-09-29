@@ -6,7 +6,7 @@ import { DECAY, REACTIONS, STATUSES, type Status } from '../data/codex';
 import { ARTIFACTS, type ArtCtx, type DmgInfo } from '../data/artifacts';
 import { mulberry32, type Rng } from './rng';
 import type {
-  Body, Curse, DuelEvent, DuelResult, Field, LineState, Mage, MageSnap, Side, Snap, TomeSpec, Unit, UnitSnap, WardCond,
+  Body, BreakdownItem, Curse, DuelEvent, DuelResult, Field, LineState, Mage, MageSnap, Side, Snap, TomeSpec, Unit, UnitSnap, WardCond,
 } from './types';
 import { WARD_CONDS } from './types';
 
@@ -79,6 +79,9 @@ export class Duel {
   smoke = 0;
   smokeT = 0;
   lineRes: [(Resolved | null)[], (Resolved | null)[]] = [[], []];
+  blame = '';
+  reactName = '';
+  ledger = [0, 1].map(() => ({ dealt: new Map<string, BreakdownItem>(), taken: new Map<string, BreakdownItem>(), healed: new Map<string, BreakdownItem>() }));
 
   constructor(a: TomeSpec, b: TomeSpec, seed: number) {
     this.seed = seed;
@@ -116,7 +119,23 @@ export class Duel {
 
   // ---------- plumbing ----------
   ev(e: Evt) { (e as DuelEvent).t = Math.round(this.t * 1000) / 1000; this.events.push(e as DuelEvent); }
-  at(delay: number, fn: () => void) { this.queue.push({ time: this.t + delay, seq: this.qseq++, fn }); }
+  // queued effects remember what caused them, so damage that lands later is still credited to its spell
+  at(delay: number, fn: () => void) { const b = this.blame; this.queue.push({ time: this.t + delay, seq: this.qseq++, fn: () => this.blamed(b, fn) }); }
+  blamed<T>(label: string, fn: () => T): T { const prev = this.blame; this.blame = label; try { return fn(); } finally { this.blame = prev; } }
+  artHook(id: string, fn: () => void) { this.blamed(ARTIFACTS[id]?.name || id, fn); }
+  // ---------- damage and healing breakdown ----------
+  credit(book: 'dealt' | 'taken' | 'healed', side: Side, label: string, amt: number, ess: Essence | null, kind: string) {
+    const m = this.ledger[side][book];
+    const e = m.get(label);
+    if (e) e.amt += amt; else m.set(label, { label, amt, ess, kind });
+  }
+  dmgLabel(info: { kind: string; status?: Status; label?: string }): string {
+    if (info.label) return info.label;
+    if (info.kind === 'dot') return info.status === 'poison' ? 'Poison' : 'Burning';
+    if (info.kind === 'reaction') return this.reactName || 'Reactions';
+    if (info.kind === 'retribution') return 'Retribution';
+    return this.blame || 'Other';
+  }
   opp(m: Mage | Side): Mage { const s = typeof m === 'number' ? m : m.side; return this.mages[1 - s]; }
   mage(s: Side): Mage { return this.mages[s]; }
   ctx(m: Mage): ArtCtx { return { duel: this, me: m, foe: this.opp(m) }; }
@@ -140,13 +159,17 @@ export class Duel {
       names: [this.mages[0].name, this.mages[1].name], lines: this.lineRes, wards: wardsOut,
       arts: [this.mages[0].arts.map(a => a.id), this.mages[1].arts.map(a => a.id)],
       stats: { dealt: [Math.round(this.mages[0].dealt), Math.round(this.mages[1].dealt)], healed: [Math.round(this.mages[0].healed), Math.round(this.mages[1].healed)] },
+      breakdown: this.ledger.map(l => {
+        const out = (m: Map<string, BreakdownItem>) => [...m.values()].map(e => ({ ...e, amt: Math.round(e.amt) })).filter(e => e.amt > 0).sort((a, b) => b.amt - a.amt);
+        return { dealt: out(l.dealt), taken: out(l.taken), healed: out(l.healed) };
+      }) as DuelResult['breakdown'],
     };
   }
 
   step() {
     const dt = PACE.dt;
     this.t += dt; this.tick++;
-    if (this.tick === 1) for (const m of this.mages) for (const a of m.arts) ARTIFACTS[a.id]?.hooks.start?.(this.ctx(m), a.st);
+    if (this.tick === 1) for (const m of this.mages) for (const a of m.arts) this.artHook(a.id, () => ARTIFACTS[a.id]?.hooks.start?.(this.ctx(m), a.st));
     this.queue.sort((a, b) => a.time - b.time || a.seq - b.seq);
     let guard = 0;
     while (this.queue.length && this.queue[0].time <= this.t + 1e-9 && guard++ < 500) {
@@ -160,12 +183,12 @@ export class Duel {
     for (const f of this.fields.slice()) this.tickField(f, dt);
     if (this.smoke > 0) {
       this.smoke -= dt; this.smokeT += dt;
-      if (this.smokeT >= 1) { this.smokeT -= 1; for (const m of this.mages) this.applyStatus(m, 'poison', 1, null); }
+      if (this.smokeT >= 1) { this.smokeT -= 1; this.blamed('Toxic Smoke', () => { for (const m of this.mages) this.applyStatus(m, 'poison', 1, null); }); }
     }
     if (this.t > PACE.sudden) {
       if (!this.sudden) { this.sudden = true; this.ev({ type: 'sudden' }); }
       const k = (1 + (this.t - PACE.sudden) * 0.5) * dt;
-      for (const m of this.mages) { m.hp -= k; if (m.hp <= 0) this.kill(m, null); }
+      for (const m of this.mages) { m.hp -= k; this.credit('taken', m.side, 'Sudden death', k, null, 'other'); if (m.hp <= 0) this.kill(m, null); }
     }
     if (this.tick % 2 === 0) this.snap();
     const [a, b] = this.mages;
@@ -229,7 +252,7 @@ export class Duel {
     }
     for (const l of m.lines) if (l.blot && l.blot <= this.t) l.blot = 0;
     this.tickCurses(m, dt);
-    for (const a of m.arts) ARTIFACTS[a.id]?.hooks.tick?.(this.ctx(m), a.st, dt);
+    for (const a of m.arts) this.artHook(a.id, () => ARTIFACTS[a.id]?.hooks.tick?.(this.ctx(m), a.st, dt));
     if (!m.alive || this.over()) return;
     m.every8 += dt;
     if (m.every8 >= 8) { m.every8 -= 8; this.wardFire(m, 'every8'); }
@@ -307,7 +330,7 @@ export class Duel {
       if (m.phase === 'recharge') {
         m.cursor = 0; m.loops++;
         this.ev({ type: 'loop', side: m.side });
-        for (const a of m.arts) ARTIFACTS[a.id]?.hooks.loop?.(this.ctx(m), a.st);
+        for (const a of m.arts) this.artHook(a.id, () => ARTIFACTS[a.id]?.hooks.loop?.(this.ctx(m), a.st));
         this.wardFire(m, 'loop');
         if (!m.alive || this.over()) return;
       }
@@ -365,7 +388,7 @@ export class Duel {
     this.onVictimRead(m);
     if (!m.alive || this.over()) return;
     const foe = this.opp(m);
-    for (const a of foe.arts) ARTIFACTS[a.id]?.hooks.foeRead?.(this.ctx(foe), a.st, L.res);
+    for (const a of foe.arts) this.artHook(a.id, () => ARTIFACTS[a.id]?.hooks.foeRead?.(this.ctx(foe), a.st, L.res));
     if (!m.alive || this.over()) return;
     for (const a of foe.arts) {
       const f = ARTIFACTS[a.id]?.hooks.cancelFoe;
@@ -408,8 +431,10 @@ export class Duel {
       if (c.id === 'tongues' || c.res.base.id === 'tongues') {
         const owner = this.mage(c.owner);
         this.ev({ type: 'cursePulse', side: m.side, key: c.key });
-        this.damage(owner, m, 3 * c.power, { kind: 'curse', ess: c.res.primary });
-        if (!ridersEmpty(c.riders)) this.applyRiders(owner, m, c.riders, c.power, c.res, {});
+        this.blamed(c.name, () => {
+          this.damage(owner, m, 3 * c.power, { kind: 'curse', ess: c.res.primary });
+          if (!ridersEmpty(c.riders)) this.applyRiders(owner, m, c.riders, c.power, c.res, {});
+        });
       }
       if (c.id === 'apocalypse') c.data.shorten = (c.data.shorten || 0) + 1;
     }
@@ -417,6 +442,10 @@ export class Duel {
 
   // ---------- casting ----------
   cast(m: Mage, res: Resolved, o: { power: number; line?: number; via?: string; echo?: boolean }) {
+    this.blamed(res.name, () => this.castInner(m, res, o));
+  }
+
+  private castInner(m: Mage, res: Resolved, o: { power: number; line?: number; via?: string; echo?: boolean }) {
     if (!m.alive || this.over()) return;
     const castId = this.castSeq++;
     const foe = this.opp(m);
@@ -426,8 +455,8 @@ export class Duel {
     for (const a of m.arts) { const f = ARTIFACTS[a.id]?.hooks.castPower; if (f) power *= f(this.ctx(m), a.st, res); }
     // Martyrdom: the next spell after it hits twice as hard
     if (m.nextPower !== 1 && !o.echo && res.base.id !== 'martyrdom') { power *= m.nextPower; m.nextPower = 1; this.ev({ type: 'react', tgt: m.id, id: 'martyr', name: 'Empowered' }); }
-    for (const a of m.arts) ARTIFACTS[a.id]?.hooks.cast?.(this.ctx(m), a.st, res, !!o.echo);
-    for (const a of foe.arts) ARTIFACTS[a.id]?.hooks.foeCast?.(this.ctx(foe), a.st, res);
+    for (const a of m.arts) this.artHook(a.id, () => ARTIFACTS[a.id]?.hooks.cast?.(this.ctx(m), a.st, res, !!o.echo));
+    for (const a of foe.arts) this.artHook(a.id, () => ARTIFACTS[a.id]?.hooks.foeCast?.(this.ctx(foe), a.st, res));
     if (!m.alive || this.over()) return;
     m.castCount++;
     if (!o.echo && res.base.id !== 'echo') {
@@ -449,13 +478,13 @@ export class Duel {
     for (const c of m.curses) {
       if (c.res.essCount.storm && c.res.base.id !== 'tongues') {
         this.ev({ type: 'cursePulse', side: m.side, key: c.key });
-        this.damage(foe, m, 3 * c.power, { kind: 'curse', ess: 'storm' });
+        this.damage(foe, m, 3 * c.power, { kind: 'curse', ess: 'storm', label: c.name });
         this.applyStatus(m, 'charge', 1, foe);
       }
       if (c.res.inst.inf.some(id => SPELLS[id].essence === 'arcane') && this.rng() < 0.25) {
         this.ev({ type: 'cursePulse', side: m.side, key: c.key });
         this.ev({ type: 'backfire', side: m.side });
-        this.damage(foe, m, 6 * c.power, { kind: 'curse', ess: 'arcane' });
+        this.damage(foe, m, 6 * c.power, { kind: 'curse', ess: 'arcane', label: c.name });
       }
     }
     // arcane fields make your spells echo
@@ -893,7 +922,7 @@ export class Duel {
     };
     this.units.push(u);
     this.ev({ type: 'spawn', unit: this.unitSnap(u), temp: u.life < 1e8 });
-    for (const a of owners.arts) ARTIFACTS[a.id]?.hooks.summon?.(this.ctx(owners), a.st, u);
+    for (const a of owners.arts) this.artHook(a.id, () => ARTIFACTS[a.id]?.hooks.summon?.(this.ctx(owners), a.st, u));
     return u;
   }
 
@@ -950,7 +979,9 @@ export class Duel {
     this.ev({ type: 'burst', side: egg.side, ess: 'fire', from: p.id, flight: 0 });
   }
 
-  tickUnit(u: Unit, dt: number) {
+  tickUnit(u: Unit, dt: number) { this.blamed(u.name, () => this.tickUnitInner(u, dt)); }
+
+  private tickUnitInner(u: Unit, dt: number) {
     if (!u.alive) return;
     this.tickBody(u, dt);
     if (!u.alive) return;
@@ -1125,7 +1156,9 @@ export class Duel {
     }
   }
 
-  tickField(f: Field, dt: number) {
+  tickField(f: Field, dt: number) { this.blamed(f.name, () => this.tickFieldInner(f, dt)); }
+
+  private tickFieldInner(f: Field, dt: number) {
     f.age += dt;
     const owner = this.mages[f.owner];
     if (f.age >= f.dur || !owner.alive) {
@@ -1205,7 +1238,7 @@ export class Duel {
     if (id === 'wither') { victim.poisonCap = 12; this.applyStatus(victim, 'poison', 2, owner); }
     for (const k of res.riders.hatch) this.spawnMinion(owner, k, 6, power);
     if (res.riders.guard) { owner.block += res.riders.guard; this.ev({ type: 'ward', side: owner.side, kind: 'block', name: res.name }); }
-    for (const a of owner.arts) ARTIFACTS[a.id]?.hooks.cursed?.(this.ctx(owner), a.st, c);
+    for (const a of owner.arts) this.artHook(a.id, () => ARTIFACTS[a.id]?.hooks.cursed?.(this.ctx(owner), a.st, c));
   }
 
   doomLeft(victim: Mage, c: Curse): number {
@@ -1214,8 +1247,14 @@ export class Duel {
   }
 
   tickCurses(m: Mage, dt: number) {
+    const prev = this.blame;
+    try { this.tickCursesInner(m, dt); } finally { this.blame = prev; }
+  }
+
+  private tickCursesInner(m: Mage, dt: number) {
     for (const c of m.curses.slice()) {
       if (!m.alive || this.over()) return;
+      this.blame = c.name;
       const owner = this.mage(c.owner);
       const mal = owner.auras.find(a => a.id === 'malediction' && a.until > this.t);
       const rate = mal ? 1 + 0.15 * m.curses.length * mal.power : 1;
@@ -1532,7 +1571,7 @@ export class Duel {
   }
 
   // ---------- core effects ----------
-  damage(src: Mage | null, tgt: Body, amt: number, info: DmgInfo & { castId?: number; res?: Resolved; quiet?: boolean }): number {
+  damage(src: Mage | null, tgt: Body, amt: number, info: DmgInfo & { castId?: number; res?: Resolved; quiet?: boolean; label?: string }): number {
     if (!tgt.alive || amt <= 0 || this.over()) return 0;
     const kind = info.kind;
     if (src && src.side !== tgt.side) {
@@ -1564,8 +1603,13 @@ export class Duel {
     if (amt <= 0) return 0;
     tgt.hp -= amt;
     if (src && src.side !== tgt.side) src.dealt += amt;
+    {
+      const label = this.dmgLabel(info), cat = info.kind === 'dot' ? 'status' : info.kind;
+      if (src && src.side !== tgt.side) this.credit('dealt', src.side, label, amt, info.ess || null, cat);
+      if (tgt.kind === 'mage') this.credit('taken', tgt.side, src && src.side === tgt.side ? `${label} (own)` : label, amt, info.ess || null, cat);
+    }
     if (!info.quiet || amt >= 1) this.ev({ type: 'dmg', tgt: tgt.id, amt: r1(amt), ess: info.ess || null, kind, crit, castId: info.castId });
-    if (src && src.side !== tgt.side) for (const a of src.arts) ARTIFACTS[a.id]?.hooks.dealt?.(this.ctx(src), a.st, tgt, amt, info);
+    if (src && src.side !== tgt.side) for (const a of src.arts) this.artHook(a.id, () => ARTIFACTS[a.id]?.hooks.dealt?.(this.ctx(src), a.st, tgt, amt, info));
     if (tgt.kind === 'mage') {
       const m = tgt as Mage;
       // Total Eclipse: a quarter of everything they take heals the caster
@@ -1574,7 +1618,7 @@ export class Duel {
     // Curse of Echoes: a third of what the cursed mage's spells deal comes back to them
     if (src && src.side !== tgt.side && kind === 'spell') {
       const ce = src.curses.find(c => c.id === 'echoes');
-      if (ce) this.at(0.25, () => { if (src.alive) { this.ev({ type: 'cursePulse', side: src.side, key: ce.key }); this.damage(this.mage(ce.owner), src, amt / 3 * Math.min(1.5, ce.power), { kind: 'curse', ess: 'shadow' }); } });
+      if (ce) this.at(0.25, () => { if (src.alive) { this.ev({ type: 'cursePulse', side: src.side, key: ce.key }); this.damage(this.mage(ce.owner), src, amt / 3 * Math.min(1.5, ce.power), { kind: 'curse', ess: 'shadow', label: ce.name }); } });
     }
     if (tgt.kind === 'unit') {
       const u = tgt as Unit;
@@ -1640,11 +1684,11 @@ export class Duel {
     }
     if (u.ess.includes('fire') || u.ukind === 'pitlord') {
       this.ev({ type: 'burst', side: foe.side, ess: 'fire', from: u.id, flight: 0.5 });
-      this.at(0.5, () => { this.damage(owner, foe, 4 * u.power, { kind: 'spell', ess: 'fire' }); this.applyStatus(foe, 'burn', 1, owner); });
+      this.at(0.5, () => this.blamed(u.name, () => { this.damage(owner, foe, 4 * u.power, { kind: 'spell', ess: 'fire' }); this.applyStatus(foe, 'burn', 1, owner); }));
     }
     if (u.ess.includes('venom') || u.ukind === 'rat') this.makeField(owner, foe.side, 'miasma', 'Plague cloud', null, u.power, 6, 2, emptyRiders(), 'venom', {});
-    for (const a of owner.arts) ARTIFACTS[a.id]?.hooks.unitDied?.(this.ctx(owner), a.st, u, true);
-    for (const a of foe.arts) ARTIFACTS[a.id]?.hooks.unitDied?.(this.ctx(foe), a.st, u, false);
+    for (const a of owner.arts) this.artHook(a.id, () => ARTIFACTS[a.id]?.hooks.unitDied?.(this.ctx(owner), a.st, u, true));
+    for (const a of foe.arts) this.artHook(a.id, () => ARTIFACTS[a.id]?.hooks.unitDied?.(this.ctx(foe), a.st, u, false));
     if (u.life === Infinity) this.wardFire(owner, 'summondies');
   }
 
@@ -1664,20 +1708,22 @@ export class Duel {
     const got = m.hp - before;
     if (got <= 0) return 0;
     m.healed += got;
+    this.credit('healed', m.side, this.blame || 'Other', got, null, 'heal');
     this.ev({ type: 'heal', tgt: m.id, amt: r1(got) });
     for (const a of m.auras) {
       if (a.id === 'retribution' && a.until > this.t) this.damage(m, this.opp(m), got * 0.3 * a.power, { kind: 'retribution', ess: 'holy', quiet: got < 1 });
     }
-    for (const a of m.arts) ARTIFACTS[a.id]?.hooks.healed?.(this.ctx(m), a.st, got, fromCurse);
+    for (const a of m.arts) this.artHook(a.id, () => ARTIFACTS[a.id]?.hooks.healed?.(this.ctx(m), a.st, got, fromCurse));
     return got;
   }
 
   react(id: string, tgt: Body) {
     const r = REACTIONS.find(x => x.id === id);
     this.found.add(id);
+    this.reactName = r ? r.name : this.reactName;
     this.ev({ type: 'react', tgt: tgt.id, id, name: r ? r.name : id });
     const owner = tgt.kind === 'mage' ? this.opp(tgt as Mage) : this.mages[1 - tgt.side];
-    for (const a of owner.arts) ARTIFACTS[a.id]?.hooks.reaction?.(this.ctx(owner), a.st, id, tgt);
+    for (const a of owner.arts) this.artHook(a.id, () => ARTIFACTS[a.id]?.hooks.reaction?.(this.ctx(owner), a.st, id, tgt));
   }
 
   freeze(tgt: Body, dur: number, ignoreImmune: boolean) {
@@ -1693,7 +1739,7 @@ export class Duel {
     }
     if (tgt.kind === 'mage') {
       const pf = (tgt as Mage).curses.find(c => c.id === 'permafrost');
-      if (pf) { dur += 2; this.at(0.05, () => { this.ev({ type: 'cursePulse', side: tgt.side, key: pf.key }); this.damage(this.mage(pf.owner), tgt, 12 * Math.min(1.5, pf.power), { kind: 'curse', ess: 'frost' }); }); }
+      if (pf) { dur += 2; this.at(0.05, () => { this.ev({ type: 'cursePulse', side: tgt.side, key: pf.key }); this.damage(this.mage(pf.owner), tgt, 12 * Math.min(1.5, pf.power), { kind: 'curse', ess: 'frost', label: pf.name }); }); }
     }
     tgt.frozen = dur; tgt.freezeImmune = dur + 6;
     this.react('frozen', tgt);
