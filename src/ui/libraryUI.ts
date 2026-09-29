@@ -1,7 +1,7 @@
 // Walking the library: borrow books, peek with candles, find the shop and the desk.
 import { app, ui, type Screen } from './app';
 import { $, COARSE, closeModal, esc, goldHtml, modalOpen, pips, showModal, spellChip, toast } from './dom';
-import { run, saveRun, gainSpell } from '../game/run';
+import { run, saveRun, gainSpell, BORROWS, candlesFor } from '../game/run';
 import { SPELL_LIST, LIBRARY_SPELLS, SPELLS, ESS, FORM_INFO, usesLabel, type SpellDef } from '../data/spells';
 import { LEVELS, TAKEN_KEY } from '../render/library';
 import { openGear, openWare, paintTags, placeTags, setShopChanged, stockShops } from './shopPanel';
@@ -68,8 +68,9 @@ function hintText(id: string): string {
 
 function renderHud() {
   const r = run!;
-  let books = ''; for (let i = 0; i < 3; i++) books += `<span class="ico-book ${i < 3 - r.lib.borrows ? 'used' : ''}"></span>`;
-  let candles = ''; for (let i = 0; i < 5; i++) candles += `<span class="ico-candle ${i < 5 - r.lib.candles ? 'used' : ''}"></span>`;
+  let books = ''; for (let i = 0; i < BORROWS; i++) books += `<span class="ico-book ${i < BORROWS - r.lib.borrows ? 'used' : ''}"></span>`;
+  const nc = Math.max(candlesFor(r), r.lib.candles);
+  let candles = ''; for (let i = 0; i < nc; i++) candles += `<span class="ico-candle ${i < nc - r.lib.candles ? 'used' : ''}"></span>`;
   const d = app.library.level;
   $('#lib-round').innerHTML = `Round ${r.round}<small>${pips(r.wins, r.losses)}</small><small>${r.wins} wins, ${r.losses} of 4 losses</small>`;
   $('#lib-counters').innerHTML = `<div class="counter" title="Gold for the Curio Shop">${goldHtml(r.gold)}</div>
@@ -136,7 +137,7 @@ function openBook(d: number, i: number) {
       h += `<div class="choice"><div class="info"><div style="font-family:var(--serif);font-size:18px">${esc(g.name)} <span class="formtag">reagent</span></div><div class="desc">${esc(g.text)}</div></div><button class="btn" data-reagent="1" ${L.borrows ? '' : 'disabled'}>Take</button></div>`;
     }
     h += `</div><div class="actions"><button class="btn quiet" id="b-close">Put it back</button></div>`;
-    if (!L.borrows) h += `<div class="meta" style="margin-top:8px">You have borrowed all three books this round.</div>`;
+    if (!L.borrows) h += `<div class="meta" style="margin-top:8px">You have borrowed both books this round.</div>`;
   }
   h += `</div></div>`;
   showModal(h);
@@ -155,10 +156,16 @@ function openBook(d: number, i: number) {
   const rg = document.querySelector<HTMLButtonElement>('[data-reagent]');
   if (rg) rg.onclick = () => {
     r.reagents.push(c!.reagent!);
-    L.borrows--; L.taken[keyOf(d, i)] = true; app.library.hideBook(d, i);
+    L.borrows--; L.taken[keyOf(d, i)] = true; app.library.hideBook(d, i); shelve(d, i);
     saveRun(); closeModal(); renderHud();
     toast(`${REAGENTS[c!.reagent!].name} added to your reagents.`, true);
   };
+}
+
+// every book you take home goes on your own shelf in the study
+function shelve(d: number, i: number) {
+  const r = run!, b = app.library.book(d, i);
+  (r.shelf ||= []).push({ t: b.title, c: '#' + b.color.getHexString(), round: r.round });
 }
 
 function borrow(d: number, i: number, id: string) {
@@ -167,7 +174,7 @@ function borrow(d: number, i: number, id: string) {
   if (!got.placed) { closeModal(); toast('Your satchel is full. Burn a spell in it to make room.'); return; }
   if (got.upgraded) toast(`${SPELLS[id].name} upgraded to ${got.upgraded.tier === 2 ? 'Gold' : 'Silver'}.`, true);
   else toast(`${SPELLS[id].name} added to your satchel.`);
-  L.borrows--; L.taken[keyOf(d, i)] = true; app.library.hideBook(d, i);
+  L.borrows--; L.taken[keyOf(d, i)] = true; app.library.hideBook(d, i); shelve(d, i);
   saveRun(); closeModal(); renderHud();
 }
 

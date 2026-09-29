@@ -1,7 +1,7 @@
 // The Binding Desk: one screen, no scrolling. The tome on the left, the binding altar in the
 // middle, the satchel and details on the right. Drag spells with mouse or touch, or tap to pick up and tap to place.
 import { app, ui, type Screen } from './app';
-import { $, artifactCard, closeModal, esc, goldHtml, modalOpen, pips, reagentCard, showModal, spellChip, spellDetail, toast } from './dom';
+import { $, artifactCard, closeModal, COARSE, esc, modalOpen, pips, reagentCard, showModal, spellChip, spellDetail, toast } from './dom';
 import { run, saveRun, slotGet, slotSet, allOwned, type Ref } from '../game/run';
 import { discover, isFound } from '../game/codex';
 import { canInfuse, discoveriesOf, fuse, maxInfusions, resolveSpell, type SpellInst } from '../data/fusion';
@@ -59,7 +59,7 @@ function resultHtml(): string {
   const r = run!;
   const b = r.desk.base, f = r.desk.inf;
   if (!b || !f) {
-    return `<div class="bd-result empty"><div class="bd-glyph">✦</div><div>${!b && !f ? 'Drop a spell on <b>Base</b>: what the new spell <i>is</i>.<br>Then one on <b>Infusion</b>: what it is <i>made of</i>. The infusion is used up.' : !b ? 'Now add a base: the spell the infusion binds into.' : 'Now add an infusion, or pick one from the list below.'}</div></div>`;
+    return `<div class="bd-result empty"><div class="bd-glyph">✦</div><div>${!b && !f ? 'Place a spell on <b>Base</b>, then another on <b>Infusion</b>.' : !b ? 'Now a base for it to bind into.' : 'Now an infusion, or pick one below.'}</div></div>`;
   }
   const err = canInfuse(b, f);
   if (err) return `<div class="bd-result empty"><div>${esc(err)}</div></div>`;
@@ -94,7 +94,7 @@ function reagentButtons() {
   for (const x of run!.reagents) counts[x] = (counts[x] || 0) + 1;
   const ids = Object.keys(counts);
   if (!ids.length) return '';
-  return `<div class="bd-reag"><span class="bd-reag-h">Reagents, applied to the base:</span>${ids.map(id => `<button class="bd-rg" data-reagent="${id}" title="${esc(REAGENTS[id].text)}"><img alt="" src="${reagentIcon(id)}"><span>${esc(REAGENTS[id].name)}${counts[id] > 1 ? ` ×${counts[id]}` : ''}</span></button>`).join('')}</div>`;
+  return `<div class="bd-reag">${ids.map(id => `<button class="bd-rg" data-reagent="${id}" title="${esc(REAGENTS[id].text)}"><img alt="" src="${reagentIcon(id)}"><span>${esc(REAGENTS[id].name)}${counts[id] > 1 ? ` ×${counts[id]}` : ''}</span></button>`).join('')}</div>`;
 }
 
 function infoHtml(): string {
@@ -125,39 +125,39 @@ function render() {
   const nextWard = WARD_UNLOCKS.find(x => x > r.round && wardsForRound(x) > r.wards.length);
   const opp = r.opponent!;
   let h = `<header class="bd-head">
-    <div class="bd-title"><h2>The Binding Desk</h2><div class="bd-sub">Round ${r.round} ${pips(r.wins, r.losses)} ${goldHtml(r.gold)}</div><div class="bd-opp">Next duel: <b>${esc(opp.name)}</b>, ${esc(opp.title || '')}</div></div>
+    <div class="bd-title"><h2>The Binding Desk</h2><div class="bd-sub">Round ${r.round} ${pips(r.wins, r.losses)} <span class="bd-opp">· next: <b>${esc(opp.name)}</b></span></div></div>
     <div class="bd-tabs" role="tablist"><button role="tab" data-tab="tome" class="${tab === 'tome' ? 'on' : ''}">Tome</button><button role="tab" data-tab="bind" class="${tab === 'bind' ? 'on' : ''}">Bind</button></div>
-    <div class="bd-nav"><button class="btn quiet small" id="d-codex">Codex</button><button class="btn quiet small" id="d-lib">Library</button><button class="btn quiet small" id="d-relax" aria-pressed="false">Sit back</button>
+    <div class="bd-nav"><button class="btn quiet small" id="d-how" aria-label="How binding works">?</button><button class="btn quiet small" id="d-codex">Codex</button><button class="btn quiet small" id="d-leave">Leave the desk</button>
       <button class="btn gold" id="d-duel">Begin the duel →</button></div>
   </header>
   <main class="bd-main" data-tab="${tab}">`;
   // --- tome ---
   h += `<section class="bd-tome"><div class="bd-page">
-    <div class="bd-ph"><h3>Incantation</h3><span>read top to bottom, then loops</span></div><div class="bd-lines">`;
+    <div class="bd-ph"><h3>Your tome</h3></div><div class="bd-lines">`;
   r.lines.forEach((_, i) => { h += `<div class="bd-line"><span class="n">${i + 1}</span>${slotHtml({ where: 'line', i }, 'empty line')}</div>`; });
   if (nextLine) h += `<div class="bd-line locked"><span class="n">${r.lines.length + 1}</span><span class="bd-slot empty"><span class="ph">opens in round ${nextLine}</span></span></div>`;
   h += `</div>`;
   if (r.wards.length) {
-    h += `<div class="bd-ph"><h3>Wards</h3><span>fire when the condition happens</span></div><div class="bd-lines">`;
+    h += `<div class="bd-ph"><h3>Wards</h3></div><div class="bd-lines">`;
     r.wards.forEach((w, i) => {
       h += `<div class="bd-ward"><select data-cond="${i}" id="ward-cond-${i}" aria-label="Ward ${i + 1} condition">${WARD_CONDS.map(c => `<option value="${c.id}" ${w.cond === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}</select>${slotHtml({ where: 'ward', i }, 'spell')}</div>`;
     });
     h += `</div>`;
   }
-  if (nextWard) h += `<div class="bd-note">${r.wards.length ? 'Another ward line' : 'Ward lines, spells that fire on a condition, open'} in round ${nextWard}.</div>`;
-  h += `<div class="bd-stats"><span><b>${st.ink}</b> ink a loop</span><span><b>${st.time.toFixed(0)} s</b> a loop</span><span><b>${inkForRound(r.round)}</b> ink</span><span><b>${hpForRound(r.round)}</b> health</span>${r.lib.forbidden ? `<span class="warn"><b>${r.lib.forbidden * 2}</b> Hex from forbidden books</span>` : ''}</div>
+  if (nextWard && !r.wards.length) h += `<div class="bd-note">Wards open in round ${nextWard}.</div>`;
+  h += `<div class="bd-stats"><span title="ink a loop / ink you have"><b>${st.ink}</b>/${inkForRound(r.round)} ink</span><span><b>${st.time.toFixed(0)} s</b> loop</span><span><b>${hpForRound(r.round)}</b> hp</span>${r.lib.forbidden ? `<span class="warn"><b>${r.lib.forbidden * 2}</b> Hex</span>` : ''}</div>
     </div></section>`;
   // --- altar ---
   h += `<section class="bd-altar ${born ? 'born' : ''}">
     <svg class="bd-ring" viewBox="0 0 200 200" aria-hidden="true"><circle cx="100" cy="100" r="96" /><circle cx="100" cy="100" r="84" class="dash" /><circle cx="100" cy="100" r="58" /></svg>
     <div class="bd-pair">${bigSlot({ where: 'base', i: 0 }, 'Base', 'what it is')}<div class="bd-plus">+</div>${bigSlot({ where: 'inf', i: 0 }, 'Infusion', 'what it is made of')}</div>
     ${resultHtml()}
-    <div class="bd-bindrow"><button class="btn gold bd-bind" id="d-bind" ${canBind() ? '' : 'disabled'}>Bind</button><span class="bd-left">${r.bindings} binding${r.bindings === 1 ? '' : 's'} left this round</span>${r.desk.base || r.desk.inf ? '<button class="btn quiet small" id="d-clear">Clear the altar</button>' : ''}</div>
+    <div class="bd-bindrow"><button class="btn gold bd-bind" id="d-bind" ${canBind() ? '' : 'disabled'}>Bind</button><span class="bd-left">${r.bindings} left</span>${r.desk.base || r.desk.inf ? '<button class="btn quiet small" id="d-clear">Clear</button>' : ''}</div>
     ${candidates()}${reagentButtons()}
   </section>`;
   // --- side ---
   h += `<section class="bd-side"><div class="bd-box"><h4>Satchel <small>${r.satchel.filter(Boolean).length}/6</small></h4><div class="bd-sat">${r.satchel.map((_, i) => slotHtml({ where: 'sat', i }, 'empty')).join('')}</div></div>
-    <div class="bd-box bd-info">${infoHtml()}</div></section>`;
+    ${sel && slotGet(r, sel) ? `<div class="bd-box bd-info">${infoHtml()}</div>` : ''}</section>`;
   h += `</main>`;
   d.innerHTML = h;
   born = false;
@@ -326,8 +326,17 @@ function wire() {
     sel = null; saveRun(); render();
   };
   $('#d-codex').onclick = showCodex;
-  $('#d-lib').onclick = () => { setArrival('desk'); app.go('library'); };
-  $('#d-relax').onclick = () => setRelaxed(!app.study.relaxed);
+  $('#d-leave').onclick = () => setSeated(false);
+  $('#d-how').onclick = () => {
+    showModal(`<div class="sheet" role="dialog" aria-label="How binding works"><h2 style="font-size:28px">How binding works</h2><ul class="bd-how" style="font-size:15px">
+      <li><b>Base</b> decides what the spell <i>is</i>: a bolt, a summon, a curse.</li>
+      <li><b>Infusion</b> adds its essence and a trait. It is used up.</li>
+      <li>Two different essences form a <b>compound</b>. Exact four-part recipes become <b>legendary</b>.</li>
+      <li>Reagents apply to the spell on the base.</li>
+      <li>Drag spells between slots, or tap one to pick it up and tap where it goes.</li></ul>
+      <div class="actions"><button class="btn quiet" id="h-close">Back to the desk</button></div></div>`);
+    $('#h-close').onclick = closeModal;
+  };
   $('#d-duel').onclick = () => {
     const r = run!;
     if (!r.lines.some(Boolean)) { toast('Write at least one spell on a line of your tome.'); return; }
@@ -343,67 +352,163 @@ function wire() {
 }
 
 const listeners: [string, EventListener][] = [['pointerdown', onDown as EventListener], ['pointermove', onMove as EventListener], ['pointerup', onUp as EventListener], ['pointercancel', onUp as EventListener]];
-const onKey = (e: KeyboardEvent) => {
-  if (e.code === 'Escape' && app.study.relaxed && !modalOpen()) { setRelaxed(false); return; }
-  if (e.code === 'Escape' && sel) { sel = null; render(); }
-};
+// ----- the study: walk about, sit at the desk to bind, go home through the door -----
+const input = { down: false, id: -1, lx: 0, ly: 0, t0: 0, moved: 0 };
+let lockAllowed = true;
+let handlers: { t: EventTarget; k: string; f: EventListener }[] = [];
+function on(t: EventTarget, k: string, f: EventListener) { t.addEventListener(k, f); handlers.push({ t, k, f }); }
+const cvs = () => app.engine.renderer.domElement;
+const locked = () => document.pointerLockElement === cvs();
 
-// ----- the study around the desk: sit back to take it in, and look over your curios on their shelves -----
-function setRelaxed(on: boolean) {
-  app.study.relaxed = on;
-  document.getElementById('bd')?.classList.toggle('relaxed', on);
-  document.getElementById('study-back')?.classList.toggle('hidden', !on);
-  if (!on) { app.study.hover = null; document.getElementById('study-tip')?.classList.add('hidden'); app.engine.renderer.domElement.style.cursor = ''; }
-}
-function onStudyMove(e: PointerEvent) {
+function setSeated(on: boolean) {
   const st = app.study;
-  st.pointer.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
-  if (!st.relaxed || modalOpen()) return;
-  const s = st.pick(e.clientX, e.clientY);
-  st.hover = s;
-  const tip = document.getElementById('study-tip');
-  if (tip) {
-    if (s) { tip.textContent = s.kind === 'art' ? ARTIFACTS[s.id].name : REAGENTS[s.id].name; tip.style.left = e.clientX + 'px'; tip.style.top = e.clientY + 'px'; tip.classList.remove('hidden'); }
-    else tip.classList.add('hidden');
+  st.seated = on;
+  document.getElementById('bd')?.classList.toggle('closed', !on);
+  document.getElementById('study-hud')?.classList.toggle('hidden', on);
+  if (on) {
+    if (locked()) document.exitPointerLock();
+    st.hover = null; st.keys = {};
+    sel = null; render(); play('page', 0.5);
+  } else {
+    sel = null;
+    document.querySelectorAll('.bd-ghost').forEach(g => g.remove());
+    drag = null;
+    if (lockAllowed && !COARSE) tryLock();
   }
-  app.engine.renderer.domElement.style.cursor = s ? 'pointer' : '';
 }
-function onStudyClick(e: PointerEvent) {
+function tryLock() {
+  const c = cvs();
+  try { const pr = c.requestPointerLock() as unknown as Promise<void> | undefined; pr?.catch?.(() => {}); } catch { /* not allowed here */ }
+}
+function showTip(text: string | null, x: number, y: number) {
+  const tip = document.getElementById('study-tip');
+  if (!tip) return;
+  if (text) { tip.textContent = text; tip.style.left = x + 'px'; tip.style.top = y + 'px'; tip.classList.remove('hidden'); } else tip.classList.add('hidden');
+}
+type StudyPick = ReturnType<typeof app.study.pick>;
+function tipOf(p: StudyPick): string | null {
+  if (!p) return null;
+  if (p.kind === 'desk') return 'The Binding Desk';
+  if (p.kind === 'door') return 'Back to the library';
+  if (p.kind === 'book') return p.title;
+  return p.s.kind === 'art' ? ARTIFACTS[p.s.id].name : REAGENTS[p.s.id].name;
+}
+function actOn(p: StudyPick) {
+  if (!p) return;
+  if (p.kind === 'desk') setSeated(true);
+  else if (p.kind === 'door') { setArrival('desk'); app.go('library'); }
+  else if (p.kind === 'curio') {
+    showModal(`<div class="sheet" role="dialog">${p.s.kind === 'art' ? artifactCard(p.s.id) : reagentCard(p.s.id)}<div class="actions"><button class="btn quiet" id="st-close">Put it back</button></div></div>`);
+    $('#st-close').onclick = closeModal;
+  }
+}
+const onKey = (e: KeyboardEvent) => {
   const st = app.study;
-  if (!st.relaxed || modalOpen()) return;
-  const s = st.pick(e.clientX, e.clientY);
-  if (!s) return;
-  showModal(`<div class="sheet" role="dialog">${s.kind === 'art' ? artifactCard(s.id) : reagentCard(s.id)}<div class="actions"><button class="btn quiet" id="st-close">Put it back</button></div></div>`);
-  $('#st-close').onclick = closeModal;
+  if (e.code === 'Escape') {
+    if (modalOpen()) { closeModal(); return; }
+    if (sel) { sel = null; render(); return; }
+    if (st.seated) { setSeated(false); return; }
+    return;
+  }
+  if (st.seated || modalOpen()) return;
+  if (e.code === 'KeyE' || e.code === 'Enter') { actOn(st.pick(window.innerWidth / 2, window.innerHeight / 2)); return; }
+  st.keys[e.code] = true;
+};
+const onKeyUp = (e: KeyboardEvent) => { app.study.keys[e.code] = false; };
+
+function wireStudy() {
+  const st = app.study, c = cvs();
+  const walking = () => !st.seated && !modalOpen() && app.screen === 'desk';
+  const paintPrompt = () => { const el = document.getElementById('look-prompt'); if (el) el.classList.toggle('hidden', COARSE || !lockAllowed || locked() || !walking()); };
+  on(document, 'pointerlockerror', (() => { lockAllowed = false; paintPrompt(); }) as EventListener);
+  on(document, 'pointerlockchange', (() => { paintPrompt(); if (!locked()) showTip(null, 0, 0); }) as EventListener);
+  on(document, 'mousemove', ((e: MouseEvent) => {
+    if (!locked() || !walking()) return;
+    st.yaw -= e.movementX * 0.0022; st.pitch = Math.max(-1.35, Math.min(1.35, st.pitch - e.movementY * 0.0022));
+  }) as EventListener);
+  on(c, 'pointerdown', ((e: PointerEvent) => {
+    if (!walking()) return;
+    if (!COARSE && lockAllowed && e.pointerType === 'mouse') {
+      if (!locked()) { tryLock(); return; }
+      actOn(st.pick(window.innerWidth / 2, window.innerHeight / 2));
+      return;
+    }
+    input.down = true; input.id = e.pointerId; input.lx = e.clientX; input.ly = e.clientY; input.t0 = performance.now(); input.moved = 0;
+  }) as EventListener);
+  on(c, 'pointermove', ((e: PointerEvent) => {
+    if (!walking()) return;
+    if (input.down && e.pointerId === input.id) {
+      const dx = e.clientX - input.lx, dy = e.clientY - input.ly;
+      input.lx = e.clientX; input.ly = e.clientY; input.moved += Math.abs(dx) + Math.abs(dy);
+      st.yaw -= dx * 0.005; st.pitch = Math.max(-1.2, Math.min(1.2, st.pitch - dy * 0.005));
+    } else if (!locked()) {
+      const p = st.pick(e.clientX, e.clientY);
+      showTip(tipOf(p), e.clientX, e.clientY);
+      st.hover = p?.kind === 'curio' ? p.s : null;
+    }
+  }) as EventListener);
+  on(c, 'pointerup', ((e: PointerEvent) => {
+    if (!walking() || e.pointerId !== input.id) return;
+    input.down = false;
+    if (input.moved < 8 && performance.now() - input.t0 < 1500) actOn(st.pick(e.clientX, e.clientY));
+  }) as EventListener);
+  on(window, 'keydown', onKey as EventListener);
+  on(window, 'keyup', onKeyUp as EventListener);
+  on(window, 'blur', (() => { st.keys = {}; }) as EventListener);
+  on(window, 'modalclosed', ((e: CustomEvent<{ relock: boolean }>) => { if (e.detail.relock && walking() && lockAllowed) tryLock(); }) as EventListener);
+  // touch stick
+  const j = $('#joystick'), knob = j.querySelector('.knob') as HTMLElement;
+  let pid = -1, cx = 0, cy = 0;
+  const move = (e: PointerEvent) => {
+    if (e.pointerId !== pid) return;
+    let dx = e.clientX - cx, dy = e.clientY - cy; const m = Math.hypot(dx, dy), max = 42;
+    if (m > max) { dx = dx / m * max; dy = dy / m * max; }
+    knob.style.transform = `translate(${dx}px, ${dy}px)`; st.joy.x = dx / max; st.joy.y = dy / max;
+  };
+  j.addEventListener('pointerdown', e => { pid = e.pointerId; const rc = j.getBoundingClientRect(); cx = rc.left + rc.width / 2; cy = rc.top + rc.height / 2; j.setPointerCapture(pid); move(e); e.preventDefault(); });
+  j.addEventListener('pointermove', move);
+  const end = (e: PointerEvent) => { if (e.pointerId !== pid) return; pid = -1; knob.style.transform = ''; st.joy.x = st.joy.y = 0; };
+  j.addEventListener('pointerup', end); j.addEventListener('pointercancel', end);
+  paintPrompt();
 }
 
 export const deskScreen: Screen = {
   mount() {
     const r = run!;
     const st = app.study;
-    st.relaxed = false;
+    st.arrive();
     st.setOwned(r.staff, r.trinkets, r.stash, r.reagents);
+    st.setShelf(r.shelf || []);
     app.engine.setView(st);
     while (r.lines.length < linesForRound(r.round)) r.lines.push(null);
     while (r.wards.length < wardsForRound(r.round)) r.wards.push({ cond: 'loop', spell: null });
-    ui().innerHTML = `<div id="bd"></div><div id="study-tip" class="hidden"></div><button id="study-back" class="btn quiet hidden">Back to the desk</button>`;
-    $('#study-back').onclick = () => setRelaxed(false);
+    ui().innerHTML = `<div id="study-hud"><div id="crosshair"></div>
+        <div id="look-prompt" class="hidden">Click to look around · WASD walk · click the desk to bind · the door leads back · Esc frees the mouse</div>
+        <div id="joystick" class="${COARSE ? '' : 'hidden'}"><div class="knob"></div></div></div>
+      <div id="study-tip" class="hidden"></div><div id="bd" class="closed"></div>`;
     sel = null;
-    // put the first new spell in reach: if the tome has room and the satchel has spells, the tab opens on Bind
     tab = 'bind';
-    render();
     const d = $('#bd');
     for (const [k, f] of listeners) d.addEventListener(k, f);
-    window.addEventListener('keydown', onKey);
-    const cv = app.engine.renderer.domElement;
-    cv.addEventListener('pointermove', onStudyMove); cv.addEventListener('pointerup', onStudyClick);
+    wireStudy();
+  },
+  tick() {
+    const st = app.study;
+    if (st.atDoor() && !modalOpen()) { setArrival('desk'); app.go('library'); return; }
+    // with the mouse captured, name whatever is under the crosshair
+    if (locked() && !st.seated && !modalOpen()) {
+      const p = st.pick(window.innerWidth / 2, window.innerHeight / 2);
+      showTip(tipOf(p), window.innerWidth / 2, window.innerHeight / 2);
+      st.hover = p?.kind === 'curio' ? p.s : null;
+    }
   },
   unmount() {
-    const cv = app.engine.renderer.domElement;
-    cv.removeEventListener('pointermove', onStudyMove); cv.removeEventListener('pointerup', onStudyClick);
-    cv.style.cursor = '';
-    app.study.relaxed = false; app.study.hover = null;
-    window.removeEventListener('keydown', onKey);
+    for (const h of handlers) h.t.removeEventListener(h.k, h.f);
+    handlers = [];
+    const st = app.study;
+    st.seated = false; st.hover = null; st.keys = {}; st.joy = { x: 0, y: 0 };
+    if (document.pointerLockElement) document.exitPointerLock();
+    cvs().style.cursor = '';
     document.querySelectorAll('.bd-ghost').forEach(g => g.remove());
     drag = null;
     closeModal();

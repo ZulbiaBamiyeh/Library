@@ -8,6 +8,10 @@ import { STALL_BY_KEY } from '../data/stalls';
 import { hashStr, mulberry32, weighted, shuffle } from '../sim/rng';
 import { bindingsForRound, hpForRound, inkForRound, linesForRound, trinketSlotsForRound, wardsForRound } from './progression';
 
+// In the library each round: two books to borrow, and one candle to peek inside a book with (two, with the stub).
+export const BORROWS = 2;
+export function candlesFor(r: Run): number { return 1 + (r.trinkets.includes('candlestub') ? 1 : 0); }
+
 export const store = {
   get<T>(k: string, d: T): T { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) as T : d; } catch { return d; } },
   set(k: string, v: unknown) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage unavailable */ } },
@@ -36,7 +40,8 @@ export interface Run {
   // taken and peeked are keyed by book index, plus 1000000 per level below the Reading Room
   lib: { borrows: number; candles: number; peeked: Record<number, boolean>; taken: Record<number, boolean>; forbidden: number; depth?: number };
   shop: { stock: ShopItem[]; rerolls: number; visited: boolean };
-  secret?: Record<number, ShopItem[]>; // the hidden shops in the depths, by floor, stocked when first found
+  secret?: Record<number, ShopItem[]>;
+  shelf?: { t: string; c: string; round: number }[]; // every book you have borrowed, kept on your shelf in the study // the hidden shops in the depths, by floor, stocked when first found
   bindings: number;
   desk: { base: SpellInst | null; inf: SpellInst | null };
   phase: 'library' | 'shop' | 'desk' | 'duel';
@@ -70,7 +75,7 @@ export function newRun(): Run {
   const r: Run = {
     v: 2, id: (Date.now() % 1e9) | 0, runNo, round: 1, wins: 0, losses: 0, gold: 10, uid: 0, name: 'You',
     lines: [], wards: [], satchel: [], reagents: [], staff: 'ashwood', trinkets: [null, null], stash: [],
-    lib: { borrows: 3, candles: 5, peeked: {}, taken: {}, forbidden: 0 },
+    lib: { borrows: BORROWS, candles: 1, peeked: {}, taken: {}, forbidden: 0 },
     shop: { stock: [], rerolls: 0, visited: false }, bindings: 2, desk: { base: null, inf: null }, phase: 'library', opponent: null, history: [],
   };
   // one basic spell to begin with; everything else comes from the library
@@ -88,7 +93,7 @@ export function prepareRound() {
   const conds: WardCond[] = ['loop', 'every8', 'struck'];
   while (r.wards.length < wardsForRound(r.round)) r.wards.push({ cond: conds[r.wards.length] || 'loop', spell: null });
   while (r.trinkets.length < trinketSlotsForRound(r.round)) r.trinkets.push(null);
-  r.lib = { borrows: 3, candles: 5, peeked: {}, taken: {}, forbidden: 0 };
+  r.lib = { borrows: BORROWS, candles: candlesFor(r), peeked: {}, taken: {}, forbidden: 0 };
   r.shop = { stock: rollStock(r, 0), rerolls: 0, visited: false };
   r.secret = {};
   r.bindings = bindingsForRound(r.round);

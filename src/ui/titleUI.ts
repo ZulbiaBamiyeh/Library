@@ -25,7 +25,7 @@ export const titleScreen: Screen = {
         <button class="btn quiet" id="t-codex">Codex</button>
       </div>
       <div class="how">
-        <b>The Library.</b> Spine colour tells the school. Spend candles to peek inside; borrow three books a round.<br>
+        <b>The Library.</b> Spine colour tells the school. One candle a round lets you peek inside a book; borrow two books a round.<br>
         <b>Curios &amp; Oddments.</b> Through the lit door. Spend duel winnings on staves, trinkets and reagents that bend the rules.<br>
         <b>The Binding Desk.</b> Bind one spell into another: the base decides what it is, the infusion what it's made of.<br>
         <b>The Duel.</b> Your mage reads your tome top to bottom, one spell every few seconds. Win ten before you lose four.

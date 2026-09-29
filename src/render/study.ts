@@ -18,13 +18,25 @@ export class Study implements View {
   bloom = { strength: 0.5, radius: 0.55, threshold: 0.82 };
   exposure = 1.05;
   vignette = 1.05;
-  pointer = new THREE.Vector2();
-  relaxed = false; // "sit back": the panels are hidden and the view settles on the room
+  // walking about: the eye, where it looks, and what is held down
+  pos = new THREE.Vector3(3.5, 1.62, D - 1.3);
+  yaw = 0; pitch = -0.05;
+  keys: Record<string, boolean> = {};
+  joy = { x: 0, y: 0 };
+  seated = false; // at the desk, binding: the view settles over the tome
+  hoverBook = -1; // a book on your shelf under the crosshair
+  private colliders: { x0: number; x1: number; z0: number; z1: number }[] = [];
+  private deskPick!: THREE.Mesh;
+  private door!: THREE.Mesh;
+  private doorMat!: THREE.MeshBasicMaterial;
+  private shelfMesh: THREE.InstancedMesh | null = null;
+  private shelfSlots: { p: THREE.Vector3; w: number; h: number }[] = [];
+  private shelfTitles: string[] = [];
+  private shelfKey = '';
+  private bob = 0;
   hover: Shown | null = null;
   shown: Shown[] = [];
   raycaster = new THREE.Raycaster();
-  private camPos = new THREE.Vector3(0, 2.1, 3.3);
-  private camLook = new THREE.Vector3(0, 1.45, -1.6);
   private fireLight: THREE.PointLight;
   private fireSprites: THREE.Sprite[] = [];
   private candles: { s: THREE.Sprite; ph: number; base: number }[] = [];
@@ -234,10 +246,46 @@ export class Study implements View {
       this.floaters.push({ g, y: g.position.y, ph: r(0, 6) });
     }
     // a door-shaped shimmer on the front wall: the way back to the library
-    const portal = add(new THREE.Mesh(new THREE.PlaneGeometry(1.2, 2.2), new THREE.MeshBasicMaterial({ color: '#9fe3d6', transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending, depthWrite: false })), 3.5, 1.1, D - 0.02);
-    portal.rotation.y = Math.PI;
+    // the way back to the library: a doorway in the front wall, full of shimmering nothing
+    for (const sx of [-1, 1]) add(box(0.18, 2.5, 0.2, darkWood), 3.5 + sx * 0.72, 1.25, D - 0.08);
+    add(box(1.64, 0.2, 0.22, darkWood), 3.5, 2.55, D - 0.08);
+    this.doorMat = new THREE.MeshBasicMaterial({ color: '#8fd8ff', transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+    this.door = add(new THREE.Mesh(new THREE.PlaneGeometry(1.26, 2.42), this.doorMat), 3.5, 1.23, D - 0.05); this.door.rotation.y = Math.PI;
+    add(glowSprite('#8fd8ff', 2.4, 0.3), 3.5, 1.3, D - 0.3);
+    // your own bookcase, on the front wall: every book you have ever borrowed ends up here
+    {
+      const bx = -1.6, bw = 3.0, bz = D - 0.28;
+      add(box(bw + 0.1, 3.3, 0.06, darkWood), bx, 1.65, D - 0.03);
+      for (const sx of [-1, 1]) add(box(0.1, 3.3, 0.5, darkWood), bx + sx * bw / 2, 1.65, bz);
+      add(box(bw + 0.25, 0.12, 0.6, darkWood), bx, 3.33, bz);
+      for (let k = 0; k < 5; k++) add(box(bw, 0.05, 0.46, darkWood), bx, 0.12 + k * 0.78, bz);
+      // slots for up to 5 shelves of books, left to right, top shelf first
+      const r2 = mulberry32(99);
+      for (let k = 3; k >= 0; k--) {
+        let x = -bw / 2 + 0.08;
+        while (x < bw / 2 - 0.1) { const w = 0.05 + r2() * 0.05; this.shelfSlots.push({ p: new THREE.Vector3(bx + x + w / 2, 0.15 + k * 0.78, bz), w, h: 0.36 + r2() * 0.28 }); x += w + 0.006; }
+      }
+      // a reading lamp on top, lighting the shelves
+      add(new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.1, 0.3, 10), brass), bx + 1.1, 3.54, bz);
+      add(new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.2, 16, 1, true), std('#2a4a3a', { side: THREE.DoubleSide, emissive: new THREE.Color('#0a1a10') })), bx + 1.1, 3.78, bz);
+      add(glowSprite('#ffd8a0', 0.8, 0.8), bx + 1.1, 3.7, bz);
+      const shelfLight = add(new THREE.SpotLight('#ffd8a8', 14, 7, 0.9, 0.7, 1.3), bx + 0.4, 3.9, bz - 1.4);
+      shelfLight.target.position.set(bx, 1.4, bz); S.add(shelfLight.target);
+      this.colliders.push({ x0: bx - bw / 2 - 0.1, x1: bx + bw / 2 + 0.1, z0: D - 0.6, z1: D });
+    }
 
     this.stock.name = 'your curios'; S.add(this.stock);
+    // what you cannot walk through: the desk and its chair, the fireplace, cabinet, armchair, side table, the cat,
+    // the side bookshelves and the plants
+    const DZ2 = -0.9;
+    this.colliders.push(
+      { x0: -1.45, x1: 1.45, z0: DZ2 - 0.65, z1: DZ2 + 0.65 }, { x0: -0.4, x1: 0.4, z0: DZ2 - 1.4, z1: DZ2 - 0.65 },
+      { x0: -4.4, x1: -1.8, z0: -D, z1: -D + 0.95 }, { x0: 1.7, x1: 4.2, z0: -D, z1: -D + 0.8 },
+      { x0: -4.7, x1: -3.3, z0: -1.3, z1: 0.1 }, { x0: -3.6, x1: -3.0, z0: 0.1, z1: 0.7 }, { x0: -2.95, x1: -2.25, z0: -1.8, z1: -1.2 },
+      { x0: -W, x1: -W + 0.5, z0: 1.0, z1: 3.8 }, { x0: W - 0.5, x1: W, z0: -0.4, z1: 3.8 },
+      { x0: 4.2, x1: 4.8, z0: -1.2, z1: -0.6 }, { x0: -1.95, x1: -1.45, z0: -D, z1: -D + 0.65 },
+    );
+    this.deskPick = add(new THREE.Mesh(new THREE.BoxGeometry(2.9, 1.3, 1.3), new THREE.MeshBasicMaterial({ visible: false })), 0, 0.65, DZ2);
     this.motes = new Particles(300, glowTex(), true);
     this.embers = new Particles(200, glowTex(), true);
     S.add(this.motes.points, this.embers.points);
@@ -297,12 +345,56 @@ export class Study implements View {
     reagents.filter(id => !seen[id] && (seen[id] = true)).slice(0, 6).forEach((id, i) => place(id, 'reagent', this.reagentSlots[i], 1.1));
   }
 
-  pick(clientX: number, clientY: number): Shown | null {
+  // Your borrowed books, spine by spine, on your own bookcase.
+  setShelf(books: { t: string; c: string }[]) {
+    const key = books.length + ':' + (books[books.length - 1]?.t || '');
+    if (key === this.shelfKey) return;
+    this.shelfKey = key;
+    if (this.shelfMesh) { this.scene.remove(this.shelfMesh); this.shelfMesh.dispose(); }
+    const list = books.slice(-this.shelfSlots.length);
+    this.shelfTitles = list.map(b => b.t);
+    const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ map: leatherTex([255, 255, 255]), roughness: 0.7 }), Math.max(1, list.length));
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
+    list.forEach((b, i) => {
+      const s = this.shelfSlots[i];
+      m4.compose(new THREE.Vector3(s.p.x, s.p.y + s.h / 2, s.p.z), q, new THREE.Vector3(s.w, s.h, 0.3));
+      mesh.setMatrixAt(i, m4); mesh.setColorAt(i, new THREE.Color(b.c));
+    });
+    mesh.count = list.length;
+    mesh.computeBoundingSphere();
+    this.shelfMesh = mesh; this.scene.add(mesh);
+  }
+
+  // What the crosshair (or a tap) is on: the desk, the door home, a curio, or one of your books.
+  pick(clientX: number, clientY: number): { kind: 'desk' } | { kind: 'door' } | { kind: 'curio'; s: Shown } | { kind: 'book'; i: number; title: string } | null {
     this.raycaster.setFromCamera(new THREE.Vector2((clientX / window.innerWidth) * 2 - 1, -(clientY / window.innerHeight) * 2 + 1), this.camera);
-    const picks: THREE.Object3D[] = [];
+    this.raycaster.far = 4.5;
+    const picks: THREE.Object3D[] = [this.deskPick, this.door];
     for (const s of this.shown) s.root.children.forEach(c => { if (c.userData.shown !== undefined) picks.push(c); });
+    if (this.shelfMesh) picks.push(this.shelfMesh);
     const hit = this.raycaster.intersectObjects(picks, false)[0];
-    return hit ? this.shown[hit.object.userData.shown as number] : null;
+    if (!hit) return null;
+    if (hit.object === this.deskPick) return { kind: 'desk' };
+    if (hit.object === this.door) return { kind: 'door' };
+    if (hit.object === this.shelfMesh && hit.instanceId !== undefined) return { kind: 'book', i: hit.instanceId, title: this.shelfTitles[hit.instanceId] };
+    return { kind: 'curio', s: this.shown[hit.object.userData.shown as number] };
+  }
+
+  // Put you just inside the door, looking into the room.
+  arrive() { this.pos.set(3.5, 1.62, D - 1.3); this.yaw = 0.35; this.pitch = -0.08; this.seated = false; this.keys = {}; this.joy = { x: 0, y: 0 }; }
+  atDoor() { return !this.seated && this.pos.z > D - 0.75 && Math.abs(this.pos.x - 3.5) < 0.6; }
+
+  private collide(p: THREE.Vector3) {
+    const B = 0.3;
+    p.x = Math.max(-W + B, Math.min(W - B, p.x)); p.z = Math.max(-D + B, Math.min(D - B, p.z));
+    if (Math.abs(p.x - 3.5) < 0.55) p.z = Math.min(D - 0.1, p.z + 0); // (the doorway lets you right up to it)
+    for (const b of this.colliders) {
+      const x0 = b.x0 - B, x1 = b.x1 + B, z0 = b.z0 - B, z1 = b.z1 + B;
+      if (p.x > x0 && p.x < x1 && p.z > z0 && p.z < z1) {
+        const dx = Math.min(p.x - x0, x1 - p.x), dz = Math.min(p.z - z0, z1 - p.z);
+        if (dx < dz) p.x = p.x - x0 < x1 - p.x ? x0 : x1; else p.z = p.z - z0 < z1 - p.z ? z0 : z1;
+      }
+    }
   }
 
   onResize(w: number, h: number) {
@@ -313,14 +405,31 @@ export class Study implements View {
   }
 
   update(dt: number, time: number) {
-    // the view drifts a little with the mouse; sitting back, it eases out to take in the whole room
-    const want = this.relaxed ? new THREE.Vector3(0.2, 2.2, 3.7) : this.camPos;
-    const look = this.relaxed ? new THREE.Vector3(this.pointer.x * 3.2, 1.55 + this.pointer.y * 0.9, -2) : this.camLook;
-    this.camera.position.lerp(new THREE.Vector3(want.x + this.pointer.x * 0.25, want.y + this.pointer.y * 0.1, want.z), 1 - Math.exp(-dt * 3));
-    const cur = new THREE.Vector3(); this.camera.getWorldDirection(cur);
-    const target = look.clone().sub(this.camera.position).normalize();
-    cur.lerp(target, 1 - Math.exp(-dt * 4));
-    this.camera.lookAt(this.camera.position.clone().add(cur));
+    const cam = this.camera;
+    if (this.seated) {
+      // in the chair behind the desk, looking down at the open tome and the room beyond it
+      cam.position.lerp(new THREE.Vector3(0, 1.62, -2.05), 1 - Math.exp(-dt * 4));
+      const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.42, Math.PI, 0, 'YXZ'));
+      cam.quaternion.slerp(q, 1 - Math.exp(-dt * 4));
+    } else {
+      const k = this.keys; let fx = 0, fz = 0;
+      if (k.KeyW || k.ArrowUp) fz += 1; if (k.KeyS || k.ArrowDown) fz -= 1;
+      if (k.KeyA || k.ArrowLeft) fx -= 1; if (k.KeyD || k.ArrowRight) fx += 1;
+      fx += this.joy.x; fz -= this.joy.y;
+      const len = Math.hypot(fx, fz);
+      if (len > 0.05) {
+        const sp = (k.ShiftLeft || k.ShiftRight ? 3.6 : 2.4) * dt / Math.max(1, len);
+        const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
+        this.pos.x += (-sy * fz + cy * fx) * sp; this.pos.z += (-cy * fz - sy * fx) * sp;
+        this.collide(this.pos);
+        this.bob += dt * 8;
+      }
+      // getting up from the desk: ease back to where you stood
+      cam.position.lerp(new THREE.Vector3(this.pos.x, this.pos.y + Math.sin(this.bob) * 0.02, this.pos.z), 1 - Math.exp(-dt * 12));
+      const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(this.pitch, this.yaw, 0, 'YXZ'));
+      cam.quaternion.slerp(q, 1 - Math.exp(-dt * 14));
+    }
+    this.doorMat.opacity = 0.28 + Math.sin(time * 1.7) * 0.08;
     // fire and candles
     const f = 0.75 + Math.sin(time * 9) * 0.1 + Math.sin(time * 13.7) * 0.08 + Math.sin(time * 3.1) * 0.07;
     this.fireLight.intensity = 18 * f;

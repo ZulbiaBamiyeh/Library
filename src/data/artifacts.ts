@@ -159,6 +159,8 @@ export const ARTIFACT_LIST: ArtifactDef[] = [
   A('waxseal', 'Wax Seal', 'trinket', 0, 'You start each duel behind a ward that blocks one bolt.', 'Pressed with a sigil that means “not yet”.',
     { kind: 'seal', color: '#a8202a', glow: '#ff8080' },
     { start: c => { c.me.block += 1; c.duel.ev({ type: 'ward', side: c.me.side, kind: 'block', name: 'Wax Seal' }); } }),
+  A('candlestub', 'Everlasting Candle Stub', 'trinket', 1, 'In the library you get a second candle each round, to peek inside one more book.', 'Burnt down to nothing a hundred years ago. Still lights.',
+    { kind: 'candle', color: '#e8dcc0', glow: '#ffb05a' }, {}),
   A('knucklebone', 'Knucklebone', 'trinket', 0, '+20 maximum health.', 'Lucky, according to whoever lost it.',
     { kind: 'bone', color: '#e8dcc0', glow: '#fff4d0' },
     { init: c => { c.me.maxHp += 20; c.me.hp += 20; } }),

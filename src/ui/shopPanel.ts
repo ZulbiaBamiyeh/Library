@@ -49,6 +49,7 @@ function buy(shop: number, i: number) {
   }
   r.gold -= price;
   it.sold = true;
+  if (it.id === 'candlestub' && r.trinkets.includes('candlestub')) r.lib.candles++; // its candle is lit at once
   saveRun();
   closeModal();
   if (shop === -1) app.shop.markSold(i);
