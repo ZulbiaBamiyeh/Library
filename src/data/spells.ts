@@ -102,7 +102,7 @@ export const SPELL_LIST: SpellDef[] = [
   S('rotseed', 'Rot Seed', 'venom', 'venom', 'bolt', 2, 14, 0.4, 1, 'linger', 'Plants a seed that bursts after 6 s for 3 damage per Poison stack'),
   S('plaguerat', 'Plague Rat', 'venom', 'venom', 'summon', 1, 16, 0.5, 1, 'hatch', 'Bites for 2 Poison; bursts into a poison cloud when it dies', 'rat'),
   S('miasma', 'Miasma', 'venom', 'venom', 'field', 1, 22, 0.6, 1, 'linger', '1 Poison every 2 s to the enemy and their summons for 12 s'),
-  S('wither', 'Wither', 'venom', 'venom', 'curse', 1, 18, 0.5, 2, 'afflict', 'Poison on them can stack to 12 instead of 6; 2 Poison now'),
+  S('wither', 'Wither', 'venom', 'venom', 'curse', 1, 18, 0.5, 2, 'afflict', 'Poison on them never fades, stacks to 12 and hurts 50% more; 2 Poison now'),
 
   // Storm (amber spines)
   S('spark', 'Spark', 'storm', 'storm', 'bolt', 0, 5, -0.4, 0, 'quick', '5 damage, 1 Charge; the quickest spell to read'),
@@ -118,11 +118,11 @@ export const SPELL_LIST: SpellDef[] = [
   S('corruption', 'Corruption', 'shadow', 'shadow', 'curse', 1, 16, 0.4, 0, 'afflict', '1 damage per second for the rest of the duel'),
   S('siphon', 'Siphon Life', 'shadow', 'shadow', 'curse', 2, 14, 0.4, 1, 'mend', '1 damage per second; you heal what it deals'),
   S('unstable', 'Unstable Affliction', 'shadow', 'shadow', 'curse', 1, 20, 0.5, 2, 'afflict', '1.5 damage per second; whoever cleanses it is silenced for 3 s and takes 20'),
-  S('doom', 'Doom', 'shadow', 'shadow', 'curse', 1, 24, 0.6, 2, 'afflict', '50 damage after 22 s; each other curse on them shortens the fuse by 2 s'),
+  S('doom', 'Doom', 'shadow', 'shadow', 'curse', 1, 24, 0.6, 2, 'afflict', '45 damage after 22 s; each other curse on them shortens the fuse by 2 s'),
   S('malediction', 'Malediction', 'shadow', 'shadow', 'aura', 1, 16, 0.3, 2, 'empower', 'Your curses tick 15% faster for each curse on the target'),
 
   // Holy (white and gold spines)
-  S('smite', 'Smite', 'holy', 'holy', 'bolt', 0, 8, 0.1, 0, 'force', '8 damage, +3 per summon the enemy controls'),
+  S('smite', 'Smite', 'holy', 'holy', 'bolt', 0, 8, 0.1, 0, 'force', '10 damage, +3 per summon the enemy controls'),
   S('mend', 'Mend', 'holy', 'holy', 'blessing', 3, 14, 0.2, 0, 'mend', 'Heal 8 and cleanse the newest curse, or 2 status stacks'),
   S('sanctuary', 'Sanctuary', 'holy', 'holy', 'ward', 1, 16, 0.3, 1, 'guard', "For 4 s you can't be targeted; enemy bolts fizzle"),
   S('consecration', 'Consecration', 'holy', 'holy', 'field', 1, 22, 0.6, 1, 'mend', 'Heals you 1 per second for 12 s; enemy summons burn in its light'),

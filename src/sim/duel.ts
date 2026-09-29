@@ -218,11 +218,12 @@ export class Duel {
     b.dotT += dt;
     if (b.dotT >= 1) {
       b.dotT -= 1;
-      if (b.st.burn > 0) this.damage(this.burnSource(b), b, b.st.burn, { kind: 'dot', ess: 'fire', status: 'burn' });
-      if (b.alive && b.st.poison > 0) this.damage(this.poisonSource(b), b, b.st.poison * 0.65, { kind: 'dot', ess: 'venom', status: 'poison' });
+      if (b.st.burn > 0) this.damage(this.burnSource(b), b, b.st.burn * 0.8, { kind: 'dot', ess: 'fire', status: 'burn' });
+      if (b.alive && b.st.poison > 0) this.damage(this.poisonSource(b), b, b.st.poison * (b.kind === 'mage' && (b as Mage).curses.some(c => c.id === 'wither') ? 0.85 : 0.55), { kind: 'dot', ess: 'venom', status: 'poison' });
       if (!b.alive) return;
     }
     const minBurn = b.kind === 'mage' && (b as Mage).curses.some(c => c.id === 'immolate') ? 2 : 0;
+    const withered = b.kind === 'mage' && (b as Mage).curses.some(c => c.id === 'wither');
     for (const k in DECAY) {
       const s = k as Status;
       if (b.st[s] > 0) {
@@ -230,6 +231,7 @@ export class Duel {
         if (b.decay[s] >= (DECAY[s] as number)) {
           b.decay[s] = 0;
           if (s === 'burn' && b.st.burn <= minBurn) continue;
+          if (s === 'poison' && withered) continue;
           if (s === 'burn' && b.kind === 'mage' && this.foeHas(b as Mage, 'heartkiln') && b.st.burn <= 1) continue;
           // big fires burn out faster
           b.st[s] -= s === 'burn' ? Math.max(1, Math.floor(b.st.burn / 3)) : 1;
@@ -517,7 +519,7 @@ export class Duel {
         break;
       }
       case 'hexbolt': dmg = 3 + 2 * (to.kind === 'mage' ? (to as Mage).curses.length : 0); break;
-      case 'smite': dmg = 8 + 3 * this.unitsOf(to.side).length; break;
+      case 'smite': dmg = 10 + 3 * this.unitsOf(to.side).length; break;
       case 'stone': dmg = 14; heavy = true; break;
       case 'rotseed': {
         const victim = to; const owner = m;
@@ -970,7 +972,7 @@ export class Duel {
           this.ev({ type: 'curseEnd', side: m.side, key: c.key, how: 'doom' });
           this.ev({ type: 'callout', side: owner.side, text: 'Doom', sub: `${c.name} falls on ${m.name}` });
           this.ev({ type: 'shake', amt: 1.2 });
-          hurt(50);
+          hurt(45);
           continue;
         }
       }
@@ -1285,7 +1287,7 @@ export class Duel {
     const before = { ...st };
     const blaze = (stacks: number) => {
       this.react('blaze', tgt);
-      let dmg = 5 * stacks;
+      let dmg = 4 * stacks;
       if (src) for (const a of src.arts) { const f = ARTIFACTS[a.id]?.hooks.blazeMult; if (f) dmg *= f(this.ctx(src), a.st); }
       this.damage(src, tgt, dmg, { kind: 'reaction', ess: 'fire' });
     };

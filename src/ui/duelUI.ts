@@ -13,6 +13,7 @@ import type { Resolved } from '../data/fusion';
 import { hashStr } from '../sim/rng';
 import { goldForResult, MAX_LOSSES, MAX_WINS } from '../game/progression';
 import { artifactIcon } from '../render/icons';
+import { castSound, impactSound, play, type Sfx } from '../audio/sfx';
 
 const ROBES: Record<string, string> = {
   'Affliction Warlock': '#2a0f2a', 'Imp Engine': '#6a1a12', 'Frost Lock': '#1a3050', 'Storm Conductor': '#5a4a12',
@@ -27,6 +28,8 @@ let wardEls: [HTMLElement[], HTMLElement[]] = [[], []];
 let lastOrder = ['', ''];
 let lastChips = ['', ''];
 const castTotals = new Map<number, { side: number; name: string; dmg: number; heal: number; t: number }>();
+const reactTimes: number[] = [];
+let newFinds: string[] = [];
 const unitBars = new Map<number, HTMLElement>();
 let calloutT = 0, castbarT = [0, 0], artFlash: Record<string, number> = {};
 const tmp = new THREE.Vector3();
@@ -159,7 +162,29 @@ function callout(text: string, sub: string, side: number, gold?: boolean) {
   slow = Math.min(slow, 0.3);
 }
 
+function soundFor(ev: DuelEvent) {
+  switch (ev.type) {
+    case 'cast': castSound(ev.ess, ev.form === 'burst'); if (ev.legendary) play('legend'); break;
+    case 'dmg': if (ev.kind !== 'dot' && ev.kind !== 'curse' && ev.amt >= 2) impactSound(ev.ess, Math.min(2, ev.amt / 15)); break;
+    case 'react': play(({ frozen: 'freeze', shatter: 'shatter', blaze: 'blaze', conduct: 'conduct', resist: 'block' } as Record<string, Sfx>)[ev.id] || 'react'); break;
+    case 'spawn': play('summon', ev.temp ? 0.5 : 1); break;
+    case 'heal': if (ev.amt >= 4) play('heal'); break;
+    case 'curse': play('curse'); break;
+    case 'death': if (ev.tgt < 2) play('death'); break;
+    case 'end': setTimeout(() => play(ev.winner === 0 ? 'victory' : 'defeat'), 400); break;
+    case 'wardUse': play(ev.kind === 'mirror' ? 'reflect' : 'block'); break;
+    case 'ward': play('ward'); break;
+    case 'fizzle': play('fizzle'); break;
+    case 'strike': if (ev.ess === 'storm') play('thunder', 0.6); break;
+    case 'callout': if (ev.gold) play('legend'); else play('react'); break;
+    case 'art': play('artifact'); break;
+    case 'morph': play('sheep'); break;
+    case 'burst': if (ev.flight <= 0) play('burst'); else setTimeout(() => play('burst'), ev.flight * 1000 / Math.max(0.25, speed)); break;
+  }
+}
+
 function onEvent(ev: DuelEvent) {
+  soundFor(ev);
   switch (ev.type) {
     case 'read': castbar(ev.side, `<span style="color:${ESS[ev.ess].color}">Reading</span> ${esc(ev.name)}`); break;
     case 'cast': {
@@ -180,8 +205,11 @@ function onEvent(ev: DuelEvent) {
     case 'fizzle': castbar(ev.side, `<span class="dim">${esc(ev.name || 'Spell')}:</span> <span style="color:#e07a86">${esc(ev.reason)}</span>`); break;
     case 'react': {
       if (ev.id !== 'resist' && REACTIONS.some(r => r.id === ev.id)) {
-        if (discover(ev.id)) toast(`New reaction in your Codex: ${ev.name}`, true);
+        if (discover(ev.id)) { toast(`New reaction in your Codex: ${ev.name}`, true); newFinds.push(ev.name); }
         slow = Math.min(slow, 0.45);
+        reactTimes.push(T);
+        while (reactTimes.length && reactTimes[0] < T - 2) reactTimes.shift();
+        if (reactTimes.length === 3) callout('Chain reaction!', `${reactTimes.length} reactions in a breath`, ev.tgt < 2 ? 1 - ev.tgt : (app.board.units.get(ev.tgt)?.side === 0 ? 1 : 0), true);
       }
       break;
     }
@@ -270,12 +298,17 @@ function showResult() {
   const out = outcome;
   const title = out.draw ? 'A draw' : out.won ? 'Victory' : 'Defeat';
   const lead = out.draw ? 'Both mages fell, or neither would.' : out.won ? `${esc(res.names[1])} closes their tome.` : `${esc(res.names[1])} reads you out of the duel.`;
+  const best = new Map<string, number>();
+  for (const c of castTotals.values()) if (c.side === 0 && c.dmg > 0) best.set(c.name, (best.get(c.name) || 0) + c.dmg);
+  const top = [...best.entries()].sort((a, b) => b[1] - a[1])[0];
   const endTitle = r.wins >= MAX_WINS ? 'The run is complete: ten victories.' : r.losses >= MAX_LOSSES ? 'The run is over: four defeats.' : '';
   showModal(`<div class="sheet" role="dialog" aria-label="Result"><h2>${title}</h2><p class="lead">${lead}</p>
     <div class="result-stats">
       <div>Damage dealt<b>${res.stats.dealt[0]}</b></div><div>Damage taken<b>${res.stats.dealt[1]}</b></div>
       <div>Healing<b>${res.stats.healed[0]}</b></div><div>Gold earned<b>+${out.gold}</b></div>
     </div>
+    ${top ? `<p class="lead" style="margin-top:12px">Your best line: <b>${esc(top[0])}</b>, ${Math.round(top[1])} damage.</p>` : ''}
+    ${newFinds.length ? `<p class="lead" style="color:#6b5310">Written into the Codex: ${newFinds.map(esc).join(', ')}.</p>` : ''}
     <p class="lead" style="margin-top:14px">Record: ${pips(r.wins, r.losses)} · ${goldHtml(r.gold).replace('gold-count', 'gold-count" style="color:#8a5a08')}</p>
     ${endTitle ? `<h4>${esc(endTitle)}</h4>` : ''}
     <div class="actions">${endTitle ? '<button class="btn gold" id="r-new">Back to the title</button>' : '<button class="btn gold" id="r-next">To the next round</button>'}<button class="btn quiet" id="r-replay">Watch again</button></div></div>`);
@@ -289,7 +322,7 @@ function showResult() {
 function restart() {
   app.board.reset();
   T = -1.2; ei = 0; si = 0; ended = false; slow = 1; paused = false; resultShown = false;
-  castTotals.clear(); lastOrder = ['', '']; lastChips = ['', ''];
+  castTotals.clear(); reactTimes.length = 0; lastOrder = ['', '']; lastChips = ['', ''];
   for (const el of unitBars.values()) el.remove();
   unitBars.clear();
   app.board.applySnap(res.snaps[0]);
@@ -303,7 +336,7 @@ export const duelScreen: Screen = {
     const r = run!;
     const me = playerTome(r), opp = r.opponent!;
     res = runDuel(me, opp, hashStr(`${r.id}:${r.round}:duel`));
-    resultShown = false; outcome = null;
+    resultShown = false; outcome = null; newFinds = [];
     duelRound = r.round;
     const oppStaff = opp.artifacts.find(id => ARTIFACTS[id]?.slot === 'staff') || null;
     app.board.setup({ robes: ['#1f3f6a', ROBES[opp.title || ''] || '#5a1424'], staffs: [r.staff, oppStaff] });

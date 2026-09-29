@@ -12,6 +12,7 @@ import { hpForRound, inkForRound, linesForRound, wardsForRound } from '../game/p
 import { reagentIcon } from '../render/icons';
 import { showCodex } from './codexUI';
 import { setArrival } from './libraryUI';
+import { play } from '../audio/sfx';
 
 let sel: Ref | null = null;
 let shimmer = false;
@@ -160,6 +161,7 @@ function bind() {
     }
   }
   toast(`Bound: ${res.name}.`);
+  play('bind');
   saveRun();
   shimmer = true;
   render();

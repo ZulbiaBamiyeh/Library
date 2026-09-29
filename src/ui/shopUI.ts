@@ -5,6 +5,7 @@ import { run, saveRun, priceOf, sellPrice, rerollPrice, rollStock, type ShopItem
 import { ARTIFACTS, RARITY, REAGENTS } from '../data/artifacts';
 import { reagentIcon } from '../render/icons';
 import { setArrival } from './libraryUI';
+import { play } from '../audio/sfx';
 
 const STASH_MAX = 4;
 const KEEPER = 'Madame Verdigris';
@@ -97,6 +98,7 @@ function buy(i: number) {
   saveRun();
   closeModal();
   app.shop.markSold(i);
+  play('coin');
   say(pick(LINES.buy));
   const name = it.kind === 'art' ? ARTIFACTS[it.id].name : REAGENTS[it.id].name;
   toast(`${name} is yours.`, true);
@@ -178,6 +180,7 @@ export const shopScreen: Screen = {
       </div>`;
     renderTags(); renderGear();
     say(r.shop.visited ? pick(LINES.greet.slice(3)) : pick(LINES.greet.slice(0, 3)));
+    play('door');
     r.shop.visited = true; saveRun();
     $('#s-lib').onclick = () => { setArrival('shop'); app.go('library'); };
     $('#s-desk').onclick = () => app.go('desk');
@@ -186,7 +189,7 @@ export const shopScreen: Screen = {
       if (r.gold < p) { say(pick(LINES.poor)); return; }
       r.gold -= p; r.shop.rerolls++;
       r.shop.stock = rollStock(r, r.shop.rerolls);
-      saveRun(); shop.setStock(r.shop.stock); renderTags(); renderGear(); say(pick(LINES.reroll));
+      saveRun(); shop.setStock(r.shop.stock); renderTags(); renderGear(); say(pick(LINES.reroll)); play('reroll');
     };
     const canvas = app.engine.renderer.domElement;
     let drag = -1, lastX = 0, moved = 0;

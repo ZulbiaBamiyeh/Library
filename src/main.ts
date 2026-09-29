@@ -10,6 +10,7 @@ import { shopScreen } from './ui/shopUI';
 import { deskScreen } from './ui/deskUI';
 import { duelScreen } from './ui/duelUI';
 import { loadRun, run } from './game/run';
+import { ambience, initAudio, isMuted, setMuted } from './audio/sfx';
 
 const screens: Record<ScreenName, Screen> = { title: titleScreen, library: libraryScreen, shop: shopScreen, desk: deskScreen, duel: duelScreen };
 
@@ -35,6 +36,7 @@ app.go = (name: ScreenName) => {
     app.screen = name;
     current = screens[name];
     current.mount();
+    ambience(name === 'shop' ? 'shop' : name === 'duel' ? 'duel' : 'library');
     if (run && name !== 'title' && name !== 'duel') run.phase = name as typeof run.phase;
     setTimeout(() => {
       fade.classList.remove('on'); busy = false;
@@ -42,6 +44,15 @@ app.go = (name: ScreenName) => {
     }, 60);
   }, current ? 320 : 0);
 };
+
+initAudio();
+const muteBtn = document.createElement('button');
+muteBtn.id = 'mute';
+muteBtn.className = 'btn quiet tiny';
+const paintMute = () => { muteBtn.textContent = isMuted() ? 'Sound off' : 'Sound on'; muteBtn.setAttribute('aria-pressed', String(!isMuted())); };
+paintMute();
+muteBtn.onclick = () => { setMuted(!isMuted()); paintMute(); };
+document.body.appendChild(muteBtn);
 
 app.go('title');
 

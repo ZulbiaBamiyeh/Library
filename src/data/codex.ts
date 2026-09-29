@@ -5,16 +5,16 @@ export type Status = 'burn' | 'chill' | 'wet' | 'poison' | 'oil' | 'charge' | 'h
 export const STATUSES: Status[] = ['oil', 'wet', 'burn', 'chill', 'poison', 'charge', 'hex'];
 
 export const STATUS_INFO: Record<Status, { name: string; color: string; text: string }> = {
-  burn: { name: 'Burning', color: '#ff7a3d', text: '1 damage per second per stack, up to 8; fades every 2 s, faster when the fire is big' },
+  burn: { name: 'Burning', color: '#ff7a3d', text: '0.8 damage per second per stack, up to 8; fades every 2 s, faster when the fire is big' },
   chill: { name: 'Chill', color: '#bfe8ff', text: 'Reading slows 10% per stack; at 5 stacks the target is Frozen' },
   wet: { name: 'Wet', color: '#6fb6ff', text: 'Freezes instantly with Chill, douses Burning, conducts Charge' },
-  poison: { name: 'Poison', color: '#94e36a', text: '0.65 damage per second per stack, capped at 6; never fades' },
+  poison: { name: 'Poison', color: '#94e36a', text: '0.55 damage per second per stack, capped at 6; fades 1 stack every 8 s' },
   oil: { name: 'Oil', color: '#c9a86a', text: 'The next Burning turns it into a Blaze' },
   charge: { name: 'Charge', color: '#ffe066', text: 'Up to 10 stacks. Chain Lightning consumes it; Wet discharges it' },
   hex: { name: 'Hex', color: '#e0486e', text: 'At 5 stacks, their next spell targets themselves' },
 };
 
-export const DECAY: Partial<Record<Status, number>> = { burn: 2, chill: 6, wet: 6, oil: 8, charge: 6 };
+export const DECAY: Partial<Record<Status, number>> = { poison: 8, burn: 2, chill: 6, wet: 6, oil: 8, charge: 6 };
 
 export interface CodexEntry {
   id: string;
@@ -27,7 +27,7 @@ export interface CodexEntry {
 export const REACTIONS: CodexEntry[] = [
   { id: 'frozen', name: 'Frozen', recipe: 'Wet + Chill, or 5 Chill', text: 'Reading stops for 3 s and hits land 25% harder; then 6 s of immunity', riddle: 'Water remembers the cold.' },
   { id: 'shatter', name: 'Shatter', recipe: 'Frozen + a heavy hit', text: 'Double damage, ends Frozen early', riddle: 'What is frozen breaks under weight.' },
-  { id: 'blaze', name: 'Blaze', recipe: 'Oil + Burning', text: '5 damage per Oil stack; Oil consumed', riddle: 'Slick things hunger for flame.' },
+  { id: 'blaze', name: 'Blaze', recipe: 'Oil + Burning', text: '4 damage per Oil stack; Oil consumed', riddle: 'Slick things hunger for flame.' },
   { id: 'conduct', name: 'Conduct', recipe: 'Wet + Charge', text: '4 damage per Charge stack, all at once; both consumed', riddle: 'Rain carries the storm.' },
   { id: 'douse', name: 'Douse', recipe: 'Burning + Wet', text: 'Both removed', riddle: 'Fire drowns.' },
   { id: 'steam', name: 'Steam', recipe: 'Burning + Chill', text: 'Both removed; their next spell may miss', riddle: 'Fire and frost make a fog.' },

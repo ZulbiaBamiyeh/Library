@@ -8,6 +8,7 @@ import { REACTIONS, COMPOUNDS, LEGENDARIES } from '../data/codex';
 import { codex, hint } from '../game/codex';
 import { hashStr, mulberry32, weighted } from '../sim/rng';
 import { resolveSpell } from '../data/fusion';
+import { play } from '../audio/sfx';
 
 const SIZE_WORD = ['A slim volume', 'A stout volume', 'A heavy tome'];
 let layoutKey = '';
@@ -121,6 +122,7 @@ function openBook(i: number) {
   }
   h += `</div></div>`;
   showModal(h);
+  play('page');
   const close = document.getElementById('b-close'); if (close) close.onclick = closeModal;
   const peek = document.getElementById('b-peek');
   if (peek) peek.onclick = () => { L.candles--; L.peeked[i] = true; if (b.chained) L.forbidden++; saveRun(); renderHud(); openBook(i); };

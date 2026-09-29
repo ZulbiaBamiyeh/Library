@@ -10,6 +10,16 @@ import { flagstones, glowTex, noiseTex, ringTex, runeCircleTex, sigilTex, smokeT
 import { glowSprite, makeIceBlock, makeMage, makeSheep, makeUnit, setMageStaff, type MageRig } from './models';
 
 const MAGE_Z = 5.4;
+
+// Free GPU memory for a removed object (textures are shared and cached, so they stay).
+function disposeObj(o: THREE.Object3D) {
+  o.traverse(n => {
+    const m = n as THREE.Mesh;
+    if (m.geometry) m.geometry.dispose();
+    const mat = m.material as THREE.Material | THREE.Material[] | undefined;
+    if (Array.isArray(mat)) mat.forEach(x => x.dispose()); else mat?.dispose();
+  });
+}
 const col = (e: Essence | null | undefined) => new THREE.Color(e ? ESS[e].color : '#ffffff');
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 
@@ -37,7 +47,7 @@ const FIELD_KIND: Record<string, number> = { oil: 5, rain: 6, blizzard: 1, miasm
 export class Board implements View {
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(40, 1, 0.1, 200);
-  bloom = { strength: 0.95, radius: 0.55, threshold: 0.72 };
+  bloom = { strength: 0.8, radius: 0.5, threshold: 0.78 };
   exposure = 1.05;
   vignette = 1.05;
   glow: Particles; spark: Particles; smoke: Particles;
@@ -152,7 +162,7 @@ export class Board implements View {
   }
 
   reset() {
-    for (const u of this.units.values()) this.scene.remove(u.group);
+    for (const u of this.units.values()) { this.scene.remove(u.group); disposeObj(u.group); }
     this.units.clear();
     for (const p of this.projs.values()) this.killProj(p);
     this.projs.clear();
@@ -548,7 +558,7 @@ export class Board implements View {
     const facing = side === 0 ? -1 : 1;
     switch (kind) {
       case 'block': {
-        const m = new THREE.Mesh(new THREE.IcosahedronGeometry(1.25, 1), new THREE.MeshStandardMaterial({ color: '#bfe8ff', emissive: '#5ab0ff', emissiveIntensity: 0.8, transparent: true, opacity: 0.18, wireframe: true, depthWrite: false }));
+        const m = new THREE.Mesh(new THREE.IcosahedronGeometry(1.25, 1), new THREE.MeshStandardMaterial({ color: '#bfe8ff', emissive: '#5ab0ff', emissiveIntensity: 0.5, transparent: true, opacity: 0.12, wireframe: true, depthWrite: false }));
         m.position.y = 1.0; m.userData.spin = 0.3; return m;
       }
       case 'mirror': {
@@ -600,7 +610,7 @@ export class Board implements View {
     this.smoke.burst(pos.x, pos.y, pos.z, 10, '#d8c8f0', 2, 0.7, 0.8, { gravity: 0.3, sizeEnd: 1.6, alpha: 0.5 });
     if (id < 2) {
       const st = this.mageState[id];
-      if (st.morph) { this.scene.remove(st.morph); st.morph = null; }
+      if (st.morph) { this.scene.remove(st.morph); disposeObj(st.morph); st.morph = null; }
       this.mages[id].body.visible = true;
     } else {
       const u = this.units.get(id);
@@ -903,7 +913,7 @@ export class Board implements View {
         const k = u.dying / 0.6;
         u.group.scale.setScalar(Math.max(0.001, 1 - k));
         u.group.position.y -= dt * 0.8;
-        if (k >= 1) { this.scene.remove(u.group); this.units.delete(u.id); }
+        if (k >= 1) { this.scene.remove(u.group); disposeObj(u.group); this.units.delete(u.id); }
       }
     }
     // projectiles are moved by the player (needs duel time); here we only update trails
@@ -925,8 +935,8 @@ export class Board implements View {
       if (a > 0.3) {
         const r = Math.random();
         switch (f.kind) {
-          case 'rain': for (let i = 0; i < 4; i++) this.spark.emit({ x: rand(-6.5, 6.5), y: 4.4, z: zc + rand(-2.4, 2.4), vy: -16, color: '#8fc8ff', size: 0.22, life: 0.3, drag: 0, alpha: 0.8 }); break;
-          case 'blizzard': for (let i = 0; i < 3; i++) this.spark.emit({ x: rand(-6.5, 6.5), y: 4.2, z: zc + rand(-2.4, 2.4), vx: 1.5, vy: -2.5, color: '#ffffff', size: rand(0.2, 0.35), life: 1.8, drag: 0, jitter: 3, spin: 2 }); break;
+          case 'rain': for (let i = 0; i < 3; i++) this.glow.emit({ x: rand(-6.5, 6.5), y: 4.4, z: zc + rand(-2.4, 2.4), vy: -16, color: '#4a7ab0', size: 0.12, sizeEnd: 0.1, life: 0.28, drag: 0, alpha: 0.5 }); break;
+          case 'blizzard': if (r < 0.7) this.glow.emit({ x: rand(-6.5, 6.5), y: 4.2, z: zc + rand(-2.4, 2.4), vx: 1.5, vy: -2.5, color: '#8aa8c8', size: rand(0.1, 0.18), sizeEnd: 0.1, life: 1.8, drag: 0, jitter: 3, alpha: 0.55 }); break;
           case 'miasma': case 'smog': case 'smoke': if (r < 0.5) this.smoke.emit({ x: rand(-6, 6), y: 0.3, z: zc + rand(-2.2, 2.2), vy: rand(0.1, 0.4), color: f.kind === 'smoke' ? '#3a5a2a' : '#4a7a2a', size: rand(1.2, 2), sizeEnd: 2.8, life: 2.2, alpha: 0.4 }); break;
           case 'consecration': if (r < 0.6) this.glow.emit({ x: rand(-6, 6), y: 0.1, z: zc + rand(-2.2, 2.2), vy: rand(0.6, 1.4), color: '#ffeaa0', size: rand(0.2, 0.4), life: 1.4, drag: 0 }); break;
           case 'thunder': if (r < 0.02) { const x = rand(-6, 6), z = zc + rand(-2, 2); this.lightning(new THREE.Vector3(x, 4.5, z), new THREE.Vector3(x + rand(-1, 1), 3, z), '#ffe066', 0.08, 0.2); } break;
