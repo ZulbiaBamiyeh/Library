@@ -131,6 +131,33 @@ const EXPLICIT: Record<string, { name: string; special?: string }> = {
   'imp+firebolt': { name: 'Fire Imp' },
   'treant+venomdart': { name: 'Blightwood' },
   'skeletons+firebolt': { name: 'Cinder Bones' },
+  // named fusions with their own behaviour
+  'imp+imp': { name: 'Imp Gang', special: 'impgang' },
+  'skeletons+skeletons': { name: 'Bone Legion', special: 'legion' },
+  'echo+echo': { name: 'Resonance', special: 'resonance' },
+  'counterspell+plagiarize': { name: 'Spellthief', special: 'spellthief' },
+  'sanctuary+mirror': { name: 'Hall of Mirrors', special: 'hallofmirrors' },
+  'deepfreeze+stone': { name: 'Shatterpoint', special: 'shatterpoint' },
+  'polymorph+plaguerat': { name: 'Ratify', special: 'ratify' },
+  'doom+echo': { name: 'Echoing Doom', special: 'echodoom' },
+  'phoenixegg+frostshard': { name: 'Frost Phoenix' },
+  'golem+chainlightning': { name: 'Tesla Golem' },
+  'haste+spark': { name: 'Lightning Reflexes' },
+  'leech+mend': { name: 'Blood Pact' },
+  'snowman+firebolt': { name: 'Melting Snowman' },
+  'icicle+icicle': { name: 'Icicle Barrage' },
+  'fireball+oilflask': { name: 'Napalm' },
+  'boulder+earthquake': { name: 'Landslide' },
+  'judgement+smite': { name: 'Final Judgement' },
+  'manadrain+siphon': { name: 'Soul Siphon' },
+  'wildmagic+echo': { name: 'Chaos Echo' },
+  'missiles+spark': { name: 'Spark Barrage' },
+  'overcharge+raincloud': { name: 'Storm Surge' },
+  'flashpoint+oilflask': { name: 'Powder Keg' },
+  'golem+stone': { name: 'Mountain' },
+  'snowman+snowman': { name: 'Snow Fort' },
+  'haunt+echo': { name: 'Poltergeist' },
+  'timewarp+haste': { name: 'Rewind' },
 };
 
 const TRAIT_PREFIX: Partial<Record<Trait, string>> = { hatch: 'Hatching', mend: 'Mending', echo: 'Echoing', guard: 'Warding', daze: 'Dazing', chain: 'Chaining', quick: 'Quick', splash: 'Scattering', afflict: 'Wailing', empower: 'Mighty', linger: 'Lingering', oil: 'Pitch', wet: 'Rain', force: 'Keen', heavy: 'Heavy' };
@@ -246,6 +273,8 @@ export function resolveSpell(inst: SpellInst): Resolved {
 
 const legendaryPrimary: Record<string, Essence> = {
   pitlord: 'fire', frostlich: 'frost', flock: 'arcane', apocalypse: 'shadow', philmirror: 'arcane', worldroot: 'stone', tempest: 'storm',
+  supernova: 'holy', absolutezero: 'frost', blackdeath: 'venom', thorsanvil: 'storm', endlesslibrary: 'arcane', seraph: 'holy', mindflayer: 'shadow',
+  hydra: 'venom', totaleclipse: 'shadow', phoenixlord: 'fire', stormspire: 'storm',
 };
 
 export function maxInfusions(inst: SpellInst): number {
@@ -303,12 +332,24 @@ const FORM_ESSENCE_NOTE: Partial<Record<Form, Partial<Record<Essence, string>>>>
   },
 };
 
+const SPECIAL_TEXT: Record<string, string> = {
+  impgang: 'Three imps arrive at once, each firing a 2-damage bolt every 2 s.',
+  legion: 'Five skeletons; each blocks one bolt aimed at you.',
+  resonance: 'Recasts your previous spell at full power.',
+  spellthief: 'Cancels their next spell as they finish reading it, and you cast it instead.',
+  hallofmirrors: 'For 4 s every enemy bolt is reflected back at them.',
+  shatterpoint: 'If the target is Frozen, it shatters for 30 heavy damage; otherwise adds 3 Chill.',
+  ratify: 'The enemy becomes a plague rat for 5 s: their tome stops and they gain Poison every second.',
+  echodoom: '45 damage after 22 s, and when it falls a second Doom takes its place.',
+};
+
 export function describe(r: Resolved): { head: string; lines: string[] } {
   const lines: string[] = [];
   if (r.legendary) lines.push(r.legendary.text + '.');
   else if (r.special === 'impmorph') lines.push('The enemy becomes an imp for 5 s: their tome stops and the imp claws at them.');
   else if (r.special === 'icestatue') lines.push('Frozen solid for 4 s, ignoring immunity; heavy hits deal triple.');
   else if (r.special === 'cherub') lines.push('A cherub that heals you 2 every 3 s.');
+  else if (r.special && SPECIAL_TEXT[r.special]) lines.push(SPECIAL_TEXT[r.special]);
   else lines.push(r.base.text + '.');
   const repeating = r.form === 'summon' || r.form === 'field' || r.form === 'curse' || r.form === 'aura' || r.form === 'ward';
   const ph = r.special === 'cherub' ? [] : riderPhrases(repeating ? { ...liteRiders(r.riders), hatch: r.form === 'summon' ? r.riders.hatch : [], guard: r.riders.guard } : r.riders);

@@ -10,7 +10,9 @@ const N = Number(process.argv[2] || 2000);
 const rng = mulberry32(Number(process.argv[3] || 1));
 const pick = <T>(a: T[]) => a[Math.floor(rng() * a.length)];
 let uid = 1;
+const SPECIALS = [['imp', 'imp'], ['skeletons', 'skeletons'], ['echo', 'echo'], ['counterspell', 'plagiarize'], ['sanctuary', 'mirror'], ['deepfreeze', 'stone'], ['polymorph', 'plaguerat'], ['doom', 'echo'], ['imp', 'mend'], ['polymorph', 'imp']];
 function spell() {
+  if (rng() < 0.08) { const [base, inf] = pick(SPECIALS); return { uid: uid++, base, inf: [inf], tier: Math.floor(rng() * 3) }; }
   if (rng() < 0.08) { const L = pick(LEGENDARIES); const inf = L.parts.map(p => p.id || pick(SPELL_LIST.filter(s => s.essence === p.ess)).id); return { uid: uid++, base: L.base, inf, tier: Math.floor(rng() * 3) }; }
   const n = Math.floor(rng() * 4);
   return { uid: uid++, base: pick(SPELL_LIST).id, inf: Array.from({ length: n }, () => pick(SPELL_LIST).id), tier: Math.floor(rng() * 3), ever: rng() < 0.1 ? 1 : 0, quick: rng() < 0.1 ? 1 : 0, gilded: rng() < 0.05 };

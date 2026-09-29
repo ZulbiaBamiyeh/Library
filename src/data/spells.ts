@@ -148,6 +148,50 @@ export const SPELL_LIST: SpellDef[] = [
   S('treant', 'Treant', 'stone', 'stone', 'summon', 1, 24, 0.8, 2, 'guard', '60 health; enemy bolts must hit it first', 'treant'),
   S('stoneskin', 'Stone Skin', 'stone', 'stone', 'aura', 1, 16, 0.3, 1, 'guard', 'Take 2 less damage from every hit'),
   S('earthquake', 'Earthquake', 'stone', 'stone', 'burst', 2, 20, 0.8, 1, 'splash', '8 damage to every unit on the board, yours included'),
+
+  // ---------- second shelf: stranger spells ----------
+  // Fire
+  S('emberswarm', 'Ember Swarm', 'fire', 'fire', 'bolt', 3, 16, 0.3, 1, 'splash', 'Four embers seek random enemies: 3 damage each, and 2 Burning on each enemy they find'),
+  S('flashpoint', 'Flashpoint', 'fire', 'fire', 'hex', 2, 16, 0.4, 1, 'force', 'Consumes all Burning on the target: 5 damage per stack'),
+  S('phoenixegg', 'Phoenix Egg', 'fire', 'fire', 'summon', 1, 24, 0.8, 2, 'hatch', 'An egg that hatches into a Phoenix after 6 s; the Phoenix is reborn from an egg once', 'egg'),
+  S('wildfire', 'Wildfire', 'fire', 'fire', 'field', 1, 16, 0.4, 2, 'linger', 'For 12 s, fire spreads on their side: each burning enemy sets another alight, and burning enemies take 1 more damage'),
+  // Frost
+  S('icicle', 'Icicle', 'frost', 'frost', 'bolt', 0, 7, 0, 0, 'force', '5 damage; triple against Wet or Frozen targets'),
+  S('snowman', 'Snowman', 'frost', 'frost', 'summon', 1, 18, 0.5, 1, 'guard', '40 health and draws enemy bolts; whatever hits it gains 2 Chill', 'snowman'),
+  S('permafrost', 'Permafrost', 'frost', 'frost', 'curse', 1, 20, 0.5, 2, 'afflict', 'Each time they are Frozen, they take 12 damage and stay frozen 2 s longer'),
+  S('coldsnap', 'Cold Snap', 'frost', 'frost', 'hex', 2, 14, 0.3, 1, 'daze', 'Every Wet stack on their side turns into 2 Chill'),
+  // Venom
+  S('leech', 'Leech', 'venom', 'venom', 'summon', 1, 16, 0.4, 1, 'mend', 'Latches onto the enemy mage and drains 1.5 a second to you until it is killed', 'leech'),
+  S('nettle', 'Nettle Lash', 'venom', 'venom', 'bolt', 0, 8, 0.1, 0, 'force', '3 damage, +1 per Poison stack on the target'),
+  S('contagion', 'Contagion', 'venom', 'venom', 'hex', 2, 16, 0.4, 1, 'chain', "Every status on the enemy mage spreads to each of their summons, and back"),
+  S('sporebloom', 'Spore Bloom', 'venom', 'venom', 'field', 1, 18, 0.5, 2, 'linger', 'For 18 s, whenever any summon dies, spores burst: 3 Poison on the enemy mage'),
+  // Storm
+  S('teslacoil', 'Tesla Coil', 'storm', 'storm', 'summon', 1, 22, 0.6, 2, 'chain', 'Every 3 s, zaps the most charged enemy for 3 + 1 per Charge, then chains once', 'tesla'),
+  S('overcharge', 'Overcharge', 'storm', 'storm', 'hex', 2, 16, 0.4, 1, 'force', 'Doubles their Charge. At 8 or more it detonates for 4 damage per stack'),
+  S('gale', 'Gale', 'storm', 'storm', 'burst', 2, 16, 0.5, 1, 'daze', '5 damage to the enemy and their summons; blows away their fields and knocks their summons back 2 s'),
+  S('staticshield', 'Static Shield', 'storm', 'storm', 'ward', 2, 12, 0.2, 1, 'guard', 'Blocks the next bolt and shocks its caster with 3 Charge'),
+  // Shadow
+  S('soulharvest', 'Soul Harvest', 'shadow', 'shadow', 'hex', 1, 18, 0.5, 2, 'mend', '5 damage per curse on the target; you heal as much'),
+  S('haunt', 'Haunt', 'shadow', 'shadow', 'curse', 1, 16, 0.4, 1, 'mend', 'Drains 2 a second for 8 s, then returns and heals you for all it took'),
+  S('echoes', 'Curse of Echoes', 'shadow', 'shadow', 'curse', 1, 18, 0.5, 2, 'echo', 'A third of the damage their spells deal echoes back onto them'),
+  S('huntersmark', 'Mark of the Hunter', 'shadow', 'shadow', 'curse', 1, 14, 0.3, 1, 'afflict', 'Your summons deal 50% more damage to them'),
+  S('shadowclone', 'Shadow Clone', 'shadow', 'shadow', 'summon', 1, 24, 0.7, 2, 'echo', 'A clone of you that recasts every endless spell you cast at 40% power', 'clone'),
+  // Holy
+  S('judgement', 'Judgement', 'holy', 'holy', 'bolt', 2, 16, 0.5, 1, 'force', '8 damage, +6 per status and curse on the target'),
+  S('divineshield', 'Divine Shield', 'holy', 'holy', 'ward', 1, 18, 0.3, 2, 'guard', 'For 3 s you take no damage at all'),
+  S('lightwell', 'Lightwell', 'holy', 'holy', 'field', 1, 20, 0.5, 1, 'mend', 'For 15 s on your side: every 3 s heals you 3 and cleanses a status stack'),
+  S('martyrdom', 'Martyrdom', 'holy', 'holy', 'blessing', 2, 6, 0.2, 1, 'empower', 'Lose 10 health; your next spell has double power'),
+  // Arcane
+  S('missiles', 'Arcane Missiles', 'arcane', 'arcane', 'bolt', 0, 9, 0.2, 0, 'echo', 'Three missiles of 5 damage at random enemies'),
+  S('timewarp', 'Time Warp', 'arcane', 'arcane', 'hex', 2, 16, 0.5, 2, 'daze', 'Their current line starts over and their tome is pushed back 3 s'),
+  S('manadrain', 'Mana Drain', 'arcane', 'arcane', 'hex', 2, 8, 0.3, 1, 'quick', 'Steals up to 25 ink and deals 1 damage for every 2 it takes'),
+  S('wildmagic', 'Wild Magic', 'arcane', 'arcane', 'blessing', 0, 12, 0.3, 1, 'echo', 'Casts a random spell from the library at 70% power'),
+  S('duplicate', 'Duplicate', 'arcane', 'arcane', 'aura', 1, 18, 0.4, 2, 'echo', 'Your next four bolts are cast twice'),
+  // Earth
+  S('golem', 'Golem', 'stone', 'stone', 'summon', 1, 24, 0.8, 2, 'heavy', '45 health; gains 1 attack every time it is hit', 'golem'),
+  S('boulder', 'Boulder', 'stone', 'stone', 'bolt', 2, 16, 1.2, 1, 'heavy', '22 damage, a heavy hit that knocks their reading back 1 s'),
+  S('crystal', 'Crystal Growth', 'stone', 'stone', 'aura', 1, 16, 0.4, 1, 'guard', 'Every 8 s a crystal grows that blocks one bolt (up to 2)'),
+  S('petrify', 'Petrify', 'stone', 'stone', 'hex', 1, 20, 0.5, 2, 'heavy', 'Turns them to stone for 2.5 s; for 6 s heavy hits against them deal triple'),
 ];
 
 export const SPELLS: Record<string, SpellDef> = {};

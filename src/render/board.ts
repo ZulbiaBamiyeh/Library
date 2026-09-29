@@ -42,7 +42,7 @@ export interface BoardHooks {
   onBigText(pos: THREE.Vector3, text: string, color: string): void;
 }
 
-const FIELD_KIND: Record<string, number> = { oil: 5, rain: 6, blizzard: 1, miasma: 2, smog: 2, smoke: 2, seed: 2, thunder: 4, consecration: 3, fire: 0 };
+const FIELD_KIND: Record<string, number> = { oil: 5, rain: 6, blizzard: 1, miasma: 2, smog: 2, smoke: 2, seed: 2, thunder: 4, consecration: 3, fire: 0, wildfire: 0, spores: 2, lightwell: 3 };
 
 export class Board implements View {
   scene = new THREE.Scene();
@@ -326,7 +326,8 @@ export class Board implements View {
     group.position.set(u.x, 0, u.z + (u.side === 0 ? 1.2 : -1.2));
     group.scale.setScalar(0.01);
     this.scene.add(group);
-    const height = 1.2 * ({ imp: 1.0, pitlord: 1.9, cherub: 1.1, skeleton: 1.35, frostlich: 1.8, treant: 1.8, worldroot: 2.5, sapling: 1.0, rat: 0.5, salamander: 0.5, ball: 1.2, decoy: 1.8 } as Record<string, number>)[u.kind] || 1;
+    const height = 1.2 * ({ imp: 1.0, pitlord: 1.9, cherub: 1.1, skeleton: 1.35, frostlich: 1.8, treant: 1.8, worldroot: 2.5, sapling: 1.0, rat: 0.5, salamander: 0.5, ball: 1.2, decoy: 1.8,
+      egg: 0.7, phoenix: 1.4, snowman: 1.6, leech: 0.5, hydra: 0.9, tesla: 1.7, stormspire: 2.4, clone: 1.8, golem: 1.9, seraph: 2.0 } as Record<string, number>)[u.kind] || 1;
     const v: UnitView = { id: u.id, side: u.side, kind: u.kind, group, model, target: new THREE.Vector3(u.x, 0, u.z), height, alive: true, dying: 0, lunge: 0, lungeDir: new THREE.Vector3(), spawnT: 0, flash: 0, ice: null, morph: null, snap: u, hover: (model.userData.hover as number) || 0, phase: Math.random() * 6 };
     this.units.set(u.id, v);
     const p = new THREE.Vector3(u.x, 0.05, u.z);
@@ -504,7 +505,8 @@ export class Board implements View {
       }
     }
     this.fields.set(ev.id, { id: ev.id, on: ev.on, kind: ev.kind, ess: ev.ess, mesh, age: 0, dur: ev.dur, ending: 0, clouds });
-    if (ev.kind === 'consecration') this.ring(pos.clone().setY(0.1), '#ffeaa0', 8, 0.9);
+    if (ev.kind === 'consecration' || ev.kind === 'lightwell') this.ring(pos.clone().setY(0.1), '#ffeaa0', 8, 0.9);
+    if (ev.kind === 'wildfire') for (const b of this.bodiesOnSide(ev.on)) this.emitEss('fire', b, 14, 0.6);
     if (ev.kind === 'oil') for (const b of this.bodiesOnSide(ev.on)) this.emitEss('stone', b, 6, 0.4);
     if (ev.kind === 'smoke') this.smoke.burst(0, 1, zc, 30, '#5a8a3a', 2, 1.4, 2.5, { gravity: 0.2, sizeEnd: 3, alpha: 0.5 });
   }
@@ -590,12 +592,13 @@ export class Board implements View {
     const pos = this.bodyPos(id);
     this.spark.burst(pos.x, pos.y, pos.z, 40, '#e8c8ff', 4, 0.4, 0.6);
     this.smoke.burst(pos.x, pos.y, pos.z, 14, '#d8c8f0', 2, 0.8, 0.9, { gravity: 0.3, sizeEnd: 1.8, alpha: 0.6 });
-    const m = form === 'imp' ? makeUnit('imp', '#c59bff') : makeSheep();
+    const m = form === 'imp' ? makeUnit('imp', '#c59bff') : form === 'rat' ? makeUnit('rat', '#94e36a') : form === 'stone' ? makeUnit('statue', null) : makeSheep();
+    if (form === 'rat') m.scale.multiplyScalar(1.8);
     if (id < 2) {
       const st = this.mageState[id];
       if (st.morph) this.scene.remove(st.morph);
       m.position.copy(this.mages[id].root.position); m.rotation.y = id === 0 ? Math.PI : 0;
-      m.scale.setScalar(form === 'imp' ? 1.3 : 1.2);
+      m.scale.multiplyScalar(form === 'imp' ? 1.3 : 1.2);
       this.scene.add(m); st.morph = m;
       this.mages[id].body.visible = false;
     } else {
@@ -712,7 +715,8 @@ export class Board implements View {
       }
       case 'react': {
         const p = this.bodyPos(ev.tgt);
-        const color = ({ frozen: '#9fdcff', shatter: '#e0f6ff', blaze: '#ff7a3d', conduct: '#ffe066', douse: '#6fb6ff', steam: '#f0f0f0', smoke: '#94e36a', congeal: '#c9a86a', exorcism: '#ffeaa0', resist: '#9fdcff', split: '#c59bff' } as Record<string, string>)[ev.id] || '#f6e7a8';
+        const color = ({ frozen: '#9fdcff', shatter: '#e0f6ff', blaze: '#ff7a3d', conduct: '#ffe066', douse: '#6fb6ff', steam: '#f0f0f0', smoke: '#94e36a', congeal: '#c9a86a', exorcism: '#ffeaa0', resist: '#9fdcff', split: '#c59bff',
+          overload: '#fff27a', thermal: '#ffb08a', martyr: '#ffeaa0', mutation: '#b8ff6a', void: '#9a6aff', timewarp: '#c59bff', reborn: '#ffb347', regrow: '#94e36a', babel: '#c59bff' } as Record<string, string>)[ev.id] || '#f6e7a8';
         if (ev.id !== 'resist') {
           this.hooks?.onBigText(p.clone().setY(p.y + 1.6), ev.name, color);
           this.flare(p, color, 3.5, 0.4);
@@ -720,6 +724,10 @@ export class Board implements View {
           this.lightFlash(p, color, 40, 0.5);
         }
         if (ev.id === 'blaze') { this.emitEss('fire', p, 40, 0.8, 2); this.addShake(0.5); }
+        if (ev.id === 'overload') { for (let i = 0; i < 5; i++) this.lightning(p.clone().setY(6), p, '#fff27a', 0.2, 0.35); this.emitEss('storm', p, 40, 0.8, 2); this.addShake(0.6); }
+        if (ev.id === 'thermal') { this.shatterFx(ev.tgt); this.emitEss('fire', p, 30, 0.7, 2); }
+        if (ev.id === 'reborn') { this.emitEss('fire', p, 50, 0.9, 2); this.lightFlash(p, '#ffb347', 60, 0.7); }
+        if (ev.id === 'void') this.emitEss('shadow', p, 30, 0.6);
         if (ev.id === 'conduct') { for (let i = 0; i < 3; i++) this.lightning(p.clone().setY(6), p, '#ffe066', 0.16, 0.3); this.addShake(0.4); }
         if (ev.id === 'steam' || ev.id === 'douse') this.smoke.burst(p.x, p.y, p.z, 24, '#e8e8f0', 2, 1, 1.6, { gravity: 0.6, sizeEnd: 2.4, alpha: 0.55 });
         if (ev.id === 'shatter') this.shatterFx(ev.tgt);
@@ -779,6 +787,7 @@ export class Board implements View {
       }
       case 'wardUse': {
         const p = this.bodyPos(ev.side);
+        if (ev.kind === 'divine') { this.flare(p, '#fff2c0', 2.5, 0.25); this.ring(p.clone().setY(0.1), '#ffeaa0', 3, 0.35); }
         if (ev.kind === 'angel') { this.emitEss('holy', p, 60, 1, 2); this.ring(p.clone().setY(0.1), '#ffeaa0', 8, 1); this.lightFlash(p, '#ffeaa0', 60, 0.8); }
         break;
       }
@@ -940,6 +949,9 @@ export class Board implements View {
           case 'miasma': case 'smog': case 'smoke': if (r < 0.5) this.smoke.emit({ x: rand(-6, 6), y: 0.3, z: zc + rand(-2.2, 2.2), vy: rand(0.1, 0.4), color: f.kind === 'smoke' ? '#3a5a2a' : '#4a7a2a', size: rand(1.2, 2), sizeEnd: 2.8, life: 2.2, alpha: 0.4 }); break;
           case 'consecration': if (r < 0.6) this.glow.emit({ x: rand(-6, 6), y: 0.1, z: zc + rand(-2.2, 2.2), vy: rand(0.6, 1.4), color: '#ffeaa0', size: rand(0.2, 0.4), life: 1.4, drag: 0 }); break;
           case 'thunder': if (r < 0.02) { const x = rand(-6, 6), z = zc + rand(-2, 2); this.lightning(new THREE.Vector3(x, 4.5, z), new THREE.Vector3(x + rand(-1, 1), 3, z), '#ffe066', 0.08, 0.2); } break;
+          case 'wildfire': if (r < 0.8) this.glow.emit({ x: rand(-6, 6), y: 0.15, z: zc + rand(-2.2, 2.2), vy: rand(1, 2.2), color: r < 0.4 ? '#ff7a3d' : '#ffb347', size: rand(0.3, 0.6), sizeEnd: 0.05, life: 0.7, drag: 0.5 }); break;
+          case 'spores': if (r < 0.35) this.glow.emit({ x: rand(-6, 6), y: rand(0.2, 1.4), z: zc + rand(-2.2, 2.2), vx: rand(-0.2, 0.2), vy: rand(0.05, 0.3), color: r < 0.15 ? '#c9f27a' : '#94e36a', size: rand(0.12, 0.24), life: 2.4, drag: 0, jitter: 1.5, alpha: 0.7 }); break;
+          case 'lightwell': if (r < 0.5) this.glow.emit({ x: rand(-1.2, 1.2), y: 0.2, z: (f.on === 0 ? 5.4 : -5.4) + rand(-1, 1), vy: rand(1.4, 2.6), color: '#fff2c0', size: rand(0.2, 0.35), life: 1.3, drag: 0 }); break;
           case 'oil': if (r < 0.2) this.glow.emit({ x: rand(-6, 6), y: 0.1, z: zc + rand(-2.2, 2.2), vy: 0.2, color: '#8a6a3a', size: 0.3, life: 1, alpha: 0.4 }); break;
         }
       }

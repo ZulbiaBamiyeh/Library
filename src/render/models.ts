@@ -648,6 +648,138 @@ export function makeUnit(kind: string, tint: string | null): THREE.Group {
       add(mesh(new THREE.ConeGeometry(0.2, 0.6, 12), ghost, 0, 1.75, 0));
       break;
     }
+    case 'egg': {
+      const shell = std('#f0c080', { roughness: 0.35, emissive: new THREE.Color('#ff7a1a'), emissiveIntensity: 0.35 });
+      const e = mesh(new THREE.SphereGeometry(0.28, 20, 16), shell); e.scale.set(0.85, 1.15, 0.85); e.position.y = 0.34; add(e);
+      // glowing cracks
+      for (let i = 0; i < 5; i++) {
+        const c = mesh(new THREE.BoxGeometry(0.012, 0.16, 0.012), glowMat('#ffd040', 4));
+        const a = (i / 5) * Math.PI * 2;
+        c.position.set(Math.cos(a) * 0.235, 0.38 + (i % 2) * 0.08, Math.sin(a) * 0.235); c.rotation.set(0.3 * (i % 2 ? 1 : -1), -a, 0.5); add(c);
+      }
+      const nest = mesh(new THREE.TorusGeometry(0.26, 0.07, 6, 16), std('#5a3a1a', { roughness: 1, flatShading: true })); nest.rotation.x = Math.PI / 2; nest.position.y = 0.08; add(nest);
+      add(at(glowSprite('#ff9a3d', 1.3, 0.5), new THREE.Vector3(0, 0.36, 0)));
+      break;
+    }
+    case 'phoenix': {
+      const flame = std('#ff8a2a', { roughness: 0.4, emissive: new THREE.Color('#ff5a10'), emissiveIntensity: 0.9 });
+      const gold = glowMat('#ffd040', 3);
+      const b = mesh(new THREE.SphereGeometry(0.17, 14, 10), flame); b.scale.set(0.9, 0.9, 1.4); b.position.y = 0.95; add(b);
+      const h = mesh(new THREE.SphereGeometry(0.1, 12, 10), flame); h.position.set(0, 1.12, 0.2); add(h);
+      const beak = mesh(new THREE.ConeGeometry(0.03, 0.1, 6), gold); beak.rotation.x = Math.PI / 2; beak.position.set(0, 1.1, 0.33); add(beak);
+      for (let i = 0; i < 3; i++) { const cr = mesh(new THREE.ConeGeometry(0.02, 0.16, 5), gold); cr.position.set(0, 1.24, 0.14 - i * 0.07); cr.rotation.x = -0.5 - i * 0.2; add(cr); }
+      for (const s of [-1, 1]) {
+        const ws = new THREE.Shape(); ws.moveTo(0, 0); ws.lineTo(0.55, 0.3); ws.lineTo(0.7, 0.1); ws.lineTo(0.5, 0.02); ws.lineTo(0.62, -0.1); ws.lineTo(0.35, -0.06); ws.lineTo(0.3, -0.18); ws.lineTo(0, -0.08);
+        const wing = mesh(new THREE.ShapeGeometry(ws), new THREE.MeshStandardMaterial({ color: '#ffb040', emissive: new THREE.Color('#ff6a10'), emissiveIntensity: 1.2, side: THREE.DoubleSide, transparent: true, opacity: 0.92 }));
+        wing.position.set(s * 0.1, 0.98, 0); wing.scale.set(s, 1, 1); wing.rotation.y = s * 0.6; wing.userData.wing = s; add(wing);
+      }
+      for (let i = 0; i < 3; i++) { const t = mesh(new THREE.ConeGeometry(0.05, 0.5, 6), flame); t.rotation.x = -Math.PI / 2 - 0.4; t.position.set((i - 1) * 0.07, 0.86, -0.36); add(t); }
+      eye(accent || '#fff4a0', -0.05, 1.15, 0.28, 0.02); eye(accent || '#fff4a0', 0.05, 1.15, 0.28, 0.02);
+      add(at(glowSprite('#ff7a3d', 2.2, 0.55), new THREE.Vector3(0, 0.95, 0)));
+      g.userData.hover = 0.25;
+      break;
+    }
+    case 'snowman': {
+      const snow = std('#f4f8ff', { roughness: 0.95, emissive: new THREE.Color('#9ac8ff'), emissiveIntensity: 0.08 });
+      add(mesh(new THREE.SphereGeometry(0.36, 16, 12), snow, 0, 0.34, 0));
+      add(mesh(new THREE.SphereGeometry(0.27, 16, 12), snow, 0, 0.84, 0));
+      add(mesh(new THREE.SphereGeometry(0.2, 16, 12), snow, 0, 1.22, 0));
+      const nose = mesh(new THREE.ConeGeometry(0.035, 0.18, 8), std('#ff8a2a')); nose.rotation.x = Math.PI / 2; nose.position.set(0, 1.22, 0.26); add(nose);
+      eye(accent || '#80e0ff', -0.07, 1.28, 0.17, 0.03); eye(accent || '#80e0ff', 0.07, 1.28, 0.17, 0.03);
+      for (let i = 0; i < 3; i++) add(mesh(new THREE.SphereGeometry(0.03, 8, 6), std('#2a2430'), 0, 0.72 + i * 0.1, 0.26 - Math.abs(i - 1) * 0.01));
+      const scarf = mesh(new THREE.TorusGeometry(0.19, 0.045, 8, 20), std('#c0304a', { roughness: 0.9 })); scarf.rotation.x = Math.PI / 2; scarf.position.y = 1.05; add(scarf);
+      const hat = mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.22, 14), std('#1a1820')); hat.position.y = 1.47; add(hat);
+      add(mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.025, 16), std('#1a1820'), 0, 1.37, 0));
+      for (const s of [-1, 1]) { const arm = mesh(new THREE.CylinderGeometry(0.015, 0.02, 0.5, 5), std('#5a4030')); arm.position.set(s * 0.4, 0.95, 0); arm.rotation.z = s * 1.0; add(arm); }
+      break;
+    }
+    case 'leech': case 'hydra': {
+      const hy = kind === 'hydra';
+      const skin = std(hy ? '#2a5a3a' : '#3a2a3a', { roughness: 0.3, metalness: 0.1, emissive: new THREE.Color(hy ? '#1a4a20' : '#2a0a1a'), emissiveIntensity: 0.4 });
+      const segs = hy ? 6 : 5;
+      for (let i = 0; i < segs; i++) {
+        const r = 0.13 - i * 0.012;
+        const s = mesh(new THREE.SphereGeometry(r, 12, 10), skin);
+        s.position.set(Math.sin(i * 0.9) * 0.08, hy ? 0.15 + i * 0.16 : 0.12, hy ? -i * 0.03 : -i * 0.14); add(s);
+      }
+      const mouth = mesh(new THREE.TorusGeometry(0.08, 0.025, 8, 16), std('#c04050', { emissive: new THREE.Color('#ff2040'), emissiveIntensity: 0.5 }));
+      mouth.position.set(0, hy ? 1.0 : 0.14, hy ? 0.1 : 0.12); if (!hy) mouth.rotation.y = 0; else mouth.rotation.x = -0.4; add(mouth);
+      if (hy) {
+        const head = mesh(new THREE.ConeGeometry(0.12, 0.3, 8), skin); head.rotation.x = Math.PI / 2; head.position.set(0, 1.0, 0.1); add(head);
+        eye(accent || '#b8ff6a', -0.06, 1.05, 0.16, 0.025); eye(accent || '#b8ff6a', 0.06, 1.05, 0.16, 0.025);
+        for (let i = 0; i < 4; i++) add(mesh(new THREE.ConeGeometry(0.025, 0.12, 5), std('#1a3a20'), 0, 0.3 + i * 0.18, -0.12));
+      }
+      add(at(glowSprite(accent || '#94e36a', 0.9, 0.35), new THREE.Vector3(0, hy ? 0.6 : 0.15, 0)));
+      break;
+    }
+    case 'tesla': case 'stormspire': {
+      const big = kind === 'stormspire';
+      const copper = metal('#c07a3a');
+      const iron = metal('#3a3a44');
+      add(mesh(new THREE.CylinderGeometry(0.3, 0.38, 0.18, 10), iron, 0, 0.09, 0));
+      const pole = mesh(new THREE.CylinderGeometry(0.06, 0.09, big ? 1.9 : 1.2, 8), iron); pole.position.y = big ? 1.1 : 0.75; add(pole);
+      const coils = big ? 9 : 6;
+      for (let i = 0; i < coils; i++) { const c = mesh(new THREE.TorusGeometry(0.14 - i * 0.004, 0.025, 6, 18), copper); c.rotation.x = Math.PI / 2; c.position.y = 0.3 + i * 0.13; add(c); }
+      const topY = big ? 2.15 : 1.45;
+      const orb = mesh(new THREE.SphereGeometry(big ? 0.2 : 0.14, 16, 12), glowMat('#fff4a0', 4)); orb.position.y = topY; add(orb);
+      const ring = mesh(new THREE.TorusGeometry(big ? 0.36 : 0.26, 0.02, 6, 24), glowMat('#ffe066', 3)); ring.position.y = topY; ring.userData.spin = 1; add(ring);
+      if (big) for (let i = 0; i < 3; i++) { const sp = mesh(new THREE.ConeGeometry(0.04, 0.4, 6), iron); const a = (i / 3) * Math.PI * 2; sp.position.set(Math.cos(a) * 0.25, 1.75, Math.sin(a) * 0.25); sp.rotation.set(Math.sin(a) * 0.4, 0, -Math.cos(a) * 0.4); add(sp); }
+      add(at(glowSprite('#ffe066', big ? 2.4 : 1.6, 0.8), new THREE.Vector3(0, topY, 0)));
+      break;
+    }
+    case 'clone': {
+      const shade = new THREE.MeshStandardMaterial({ color: '#1a0a2a', emissive: new THREE.Color('#5a2a8a'), emissiveIntensity: 0.7, transparent: true, opacity: 0.72, depthWrite: false, roughness: 0.8 });
+      add(lathe([[0.001, 0], [0.42, 0], [0.32, 0.4], [0.22, 0.95], [0.14, 1.2], [0.001, 1.25]], shade, 16));
+      add(mesh(new THREE.SphereGeometry(0.16, 12, 10), shade, 0, 1.36, 0));
+      const hat = mesh(new THREE.ConeGeometry(0.24, 0.7, 14), shade); hat.position.y = 1.78; hat.rotation.z = 0.12; add(hat);
+      eye(accent || '#c59bff', -0.06, 1.38, 0.14, 0.03); eye(accent || '#c59bff', 0.06, 1.38, 0.14, 0.03);
+      for (let i = 0; i < 4; i++) { const w = mesh(new THREE.TorusGeometry(0.34 + i * 0.05, 0.01, 5, 24), glowMat('#8a5acf', 1.5)); w.rotation.x = Math.PI / 2; w.position.y = 0.1 + i * 0.05; add(w); }
+      add(at(glowSprite('#8a5acf', 1.8, 0.4), new THREE.Vector3(0, 0.9, 0)));
+      break;
+    }
+    case 'golem': case 'statue': {
+      const statue = kind === 'statue';
+      const rock = std(statue ? '#8a8478' : '#6a6258', { roughness: 1, flatShading: true });
+      const part = (w: number, h: number, d: number, x: number, y: number, z: number) => {
+        const m = mesh(new THREE.DodecahedronGeometry(1, 0), rock); m.scale.set(w, h, d); m.position.set(x, y, z); m.rotation.set(x * 2, y, z); add(m); return m;
+      };
+      if (statue) {
+        // a mage caught in stone: robe, head and a pointed hat
+        add(lathe([[0.001, 0], [0.42, 0], [0.34, 0.45], [0.22, 1.0], [0.14, 1.2], [0.001, 1.25]], rock, 10));
+        add(mesh(new THREE.SphereGeometry(0.16, 10, 8), rock, 0, 1.36, 0));
+        const hat = mesh(new THREE.ConeGeometry(0.24, 0.7, 10), rock); hat.position.y = 1.78; add(hat);
+        for (let i = 0; i < 5; i++) { const c = mesh(new THREE.BoxGeometry(0.01, 0.3, 0.01), std('#4a4640')); c.position.set(Math.cos(i * 1.3) * 0.3, 0.4 + i * 0.15, Math.sin(i * 1.3) * 0.3); c.rotation.z = i; add(c); }
+        break;
+      }
+      part(0.34, 0.3, 0.26, 0, 0.95, 0);
+      part(0.18, 0.16, 0.16, 0, 1.36, 0.02);
+      for (const s of [-1, 1]) {
+        part(0.14, 0.14, 0.14, s * 0.42, 1.1, 0);
+        part(0.12, 0.28, 0.12, s * 0.5, 0.72, 0.05);
+        part(0.15, 0.12, 0.15, s * 0.52, 0.42, 0.08);
+        part(0.13, 0.3, 0.13, s * 0.17, 0.32, 0);
+      }
+      const rune = accent || '#ffb347';
+      add(mesh(new THREE.CircleGeometry(0.09, 6), glowMat(rune, 3), 0, 1.0, 0.27));
+      eye(rune, -0.06, 1.38, 0.17, 0.028); eye(rune, 0.06, 1.38, 0.17, 0.028);
+      add(at(glowSprite(rune, 0.9, 0.4), new THREE.Vector3(0, 1.0, 0.3)));
+      break;
+    }
+    case 'seraph': {
+      const gold = std('#fff0c8', { roughness: 0.4, emissive: new THREE.Color('#ffe0a0'), emissiveIntensity: 0.5 });
+      add(lathe([[0.001, 0.2], [0.3, 0.2], [0.22, 0.7], [0.14, 1.2], [0.001, 1.25]], gold, 16));
+      add(mesh(new THREE.SphereGeometry(0.14, 14, 12), gold, 0, 1.36, 0));
+      add(mesh(new THREE.TorusGeometry(0.2, 0.02, 8, 28), glowMat('#ffeaa0', 4), 0, 1.66, 0)).rotateX(Math.PI / 2);
+      for (const s of [-1, 1]) for (let k = 0; k < 3; k++) {
+        const ws = new THREE.Shape(); ws.moveTo(0, 0); ws.quadraticCurveTo(0.35, 0.3, 0.7, 0.1); ws.quadraticCurveTo(0.4, 0.0, 0, -0.1);
+        const wing = mesh(new THREE.ShapeGeometry(ws), new THREE.MeshStandardMaterial({ color: '#ffffff', emissive: new THREE.Color('#ffeaa0'), emissiveIntensity: 0.6, side: THREE.DoubleSide, transparent: true, opacity: 0.85 }));
+        wing.position.set(s * 0.1, 1.25 - k * 0.3, -0.1); wing.scale.set(s * (1 - k * 0.15), 1, 1); wing.rotation.z = s * (0.5 - k * 0.5); wing.userData.wing = s; add(wing);
+      }
+      eye(accent || '#ffffff', -0.05, 1.38, 0.12, 0.022); eye(accent || '#ffffff', 0.05, 1.38, 0.12, 0.022);
+      add(at(glowSprite('#ffeaa0', 2.6, 0.6), new THREE.Vector3(0, 1.0, 0)));
+      g.userData.hover = 0.35;
+      break;
+    }
     default:
       add(mesh(new THREE.SphereGeometry(0.3, 12, 10), std('#888888'), 0, 0.3, 0));
   }

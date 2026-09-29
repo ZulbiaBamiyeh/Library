@@ -43,6 +43,7 @@ export interface Body {
   morph: number;
   morphKind: string | null;
   glacier: number; // time left where heavy hits deal triple (Ice Statue)
+  vuln: number; // Acid: takes 25% more damage while above zero
 }
 
 export interface LineState {
@@ -74,6 +75,7 @@ export interface Aura {
   power: number;
   until: number;
   riders: Riders;
+  data: Record<string, number>;
 }
 
 export interface WardLine {
@@ -128,6 +130,12 @@ export interface Mage extends Body {
   dealt: number;
   healed: number;
   loops: number;
+  shock: number; // Static Shield blocks still waiting to shock
+  divine: number; // Divine Shield time left
+  nextPower: number; // Martyrdom
+  thief: number; // Spellthief charges
+  flayer: number; // Mindflayer: backfires that also drain ink
+  history: { res: Resolved; power: number }[];
 }
 
 export interface Unit extends Body {

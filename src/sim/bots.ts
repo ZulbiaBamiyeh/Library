@@ -47,6 +47,22 @@ export const ARCHETYPES: Archetype[] = [
     lines: [['treant', 3], ['skeletons', 2], ['imp', 1], ['stoneskin', 5], ['stone', 1], ['smite', 1], ['earthquake', 6], ['stone', 1], ['treant+stone+stone', 9], ['stone+firebolt', 8]],
     wards: [['half', 'icewall', 1], ['summondies', 'imp', 3], ['struck', 'stone', 6]],
     staff: [['ashwood', 1], ['thornroot', 3]], trinkets: [['flint', 1], ['thimble', 2], ['mossidol', 4], ['twincoin', 8]] },
+  { title: 'Pyroclast',
+    lines: [['wildfire', 4], ['phoenixegg', 6], ['emberswarm', 1], ['firebolt', 1], ['oilflask', 2], ['flashpoint', 5], ['firebolt', 1], ['emberswarm+firebolt', 7], ['fireball', 3], ['phoenixegg+firebolt+firebolt', 9]],
+    wards: [['loop', 'emberswarm', 1], ['summondies', 'firebolt', 3], ['every8', 'oilflask', 6]],
+    staff: [['ashwood', 1], ['emberwood', 3]], trinkets: [['rubychip', 1], ['oilglove', 2], ['cinderchalice', 4], ['kindledruby', 7]] },
+  { title: 'Wintershade',
+    lines: [['snowman', 2], ['permafrost', 4], ['raincloud', 1], ['icicle', 1], ['frostshard', 3], ['icicle', 1], ['haunt', 5], ['coldsnap', 7], ['icicle+icicle', 6], ['raincloud+frostshard', 9]],
+    wards: [['every8', 'raincloud', 1], ['afflicted', 'icicle', 3], ['loop', 'haunt', 6]],
+    staff: [['ashwood', 1], ['rimeglass', 3]], trinkets: [['sapphire', 1], ['rainbell', 2], ['frostlocket', 4], ['hourglass', 6]] },
+  { title: 'Chronomancer',
+    lines: [['duplicate', 3], ['shadowclone', 5], ['missiles', 1], ['timewarp', 4], ['manadrain', 2], ['missiles', 1], ['wildmagic', 1], ['missiles+spark', 6], ['echo+echo', 7], ['judgement', 8]],
+    wards: [['loop', 'missiles', 1], ['every8', 'wildmagic', 3], ['summondies', 'timewarp', 6]],
+    staff: [['ashwood', 1], ['hollowreed', 4]], trinkets: [['amethyst', 1], ['goldquill', 2], ['clockheart', 5], ['gamblersdie', 7]] },
+  { title: 'Tinker',
+    lines: [['crystal', 4], ['teslacoil', 2], ['golem', 1], ['spark', 1], ['boulder', 5], ['spark', 1], ['stone', 3], ['overcharge', 6], ['golem+chainlightning', 8], ['staticshield', 7]],
+    wards: [['every8', 'spark', 1], ['loop', 'staticshield', 3], ['summondies', 'spark', 6]],
+    staff: [['ashwood', 1], ['thornroot', 3]], trinkets: [['topaz', 1], ['flint', 2], ['lodestone', 4], ['stormbottle', 7]] },
 ];
 
 export const BOT_NAMES = [
