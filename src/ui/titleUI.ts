@@ -18,18 +18,13 @@ export const titleScreen: Screen = {
     const best = store.get('inkbound2.best', 0);
     ui().innerHTML = `<div id="title"><div class="inner">
       <h1>Inkbound</h1>
-      <p class="tag">Borrow spells from the library, bind them into stranger ones, buy odd curios next door, and read your tome aloud against another mage's ghost.</p>
+      <p class="tag">You are a mage, and this is your library. The upper floors you know well. Below them the shelves go down further than anyone has followed, and some of those books are so old that nobody remembers who wrote them, or when, or why they were chained shut.</p>
       <div class="row">
         ${live ? `<button class="btn gold" id="t-continue">Continue run · round ${r!.round}</button>` : ''}
         <button class="btn ${live ? 'quiet' : 'gold'}" id="t-new">Begin a new run</button>
         <button class="btn quiet" id="t-codex">Codex</button>
       </div>
-      <div class="how">
-        <b>The Library.</b> Spine colour tells the school. One candle a round lets you peek inside a book; borrow two books a round.<br>
-        <b>Curios &amp; Oddments.</b> Through the lit door. Spend duel winnings on staves, trinkets and reagents that bend the rules.<br>
-        <b>The Binding Desk.</b> Bind one spell into another: the base decides what it is, the infusion what it's made of.<br>
-        <b>The Duel.</b> Your mage reads your tome top to bottom, one spell every few seconds. Win ten before you lose four.
-        ${best ? `<br><span class="dim">Best run: ${best} wins.</span>` : ''}
+      ${best ? `<div class="how dim">Best run: ${best} wins.</div>` : ''}
       </div></div></div>`;
     const c = document.getElementById('t-continue');
     if (c) c.onclick = () => { setArrival('title'); app.go('library'); };
