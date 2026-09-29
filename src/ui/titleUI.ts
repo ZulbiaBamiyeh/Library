@@ -4,12 +4,13 @@ import { $ } from './dom';
 import { run, loadRun, newRun, clearRun, store } from '../game/run';
 import { MAX_LOSSES, MAX_WINS } from '../game/progression';
 import { showCodex } from './codexUI';
-import { setArrival } from './libraryUI';
+import { forgetLayout, setArrival } from './libraryUI';
 
 export const titleScreen: Screen = {
   mount() {
     app.library.titleSpin = true;
     app.library.layout(0, 0);
+    forgetLayout();
     app.engine.setView(app.library);
     const r = run || loadRun();
     const live = r && r.wins < MAX_WINS && r.losses < MAX_LOSSES;

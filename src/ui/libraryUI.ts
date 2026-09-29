@@ -15,6 +15,8 @@ let layoutKey = '';
 let arrivedFrom: 'shop' | 'desk' | 'title' | null = null;
 
 export function setArrival(from: 'shop' | 'desk' | 'title') { arrivedFrom = from; }
+// The title screen lays the shelves out on its own, so the next visit must lay them out again.
+export function forgetLayout() { layoutKey = ''; }
 
 interface Contents { spells: string[]; reagent: string | null; hint: string | null }
 
