@@ -28,6 +28,8 @@ export class Shop implements View {
   sparkles: Particles;
   lanterns: { s: THREE.Sprite; L: THREE.PointLight; phase: number }[] = [];
   raycaster = new THREE.Raycaster();
+  host: THREE.Object3D | null = null; // set when the room is built into the library
+  private floor: THREE.Mesh;
   private camBase = new THREE.Vector3(0, 2.3, 5.8);
   private look = new THREE.Vector3(0, 1.3, 0);
 
@@ -39,7 +41,7 @@ export class Shop implements View {
     // floor and walls
     const planks = woodTex(12, [110, 70, 44], 256, 1024, 0.6); planks.repeat.set(6, 2);
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(14, 10), new THREE.MeshStandardMaterial({ map: planks, roughness: 0.8 }));
-    floor.rotation.x = -Math.PI / 2; floor.rotation.z = Math.PI / 2; S.add(floor);
+    floor.rotation.x = -Math.PI / 2; floor.rotation.z = Math.PI / 2; S.add(floor); this.floor = floor;
     const pl = plasterTex(8, [104, 78, 66]); pl.repeat.set(3, 1.2);
     const wall = new THREE.Mesh(new THREE.PlaneGeometry(14, 6), new THREE.MeshStandardMaterial({ map: pl, roughness: 1 }));
     wall.position.set(0, 3, -2.6); S.add(wall);
@@ -188,11 +190,44 @@ export class Shop implements View {
     });
   }
 
+  // Move this room into another scene (the library), open side towards the parent's doorway.
+  // The hall's own lights stay behind, except a few lanterns, so the library's light count stays small.
+  embedIn(parent: THREE.Object3D, pos: THREE.Vector3, rotY: number): THREE.Group {
+    const g = new THREE.Group(); g.position.copy(pos); g.rotation.y = rotY; parent.add(g);
+    for (const c of [...this.scene.children]) {
+      if ((c as THREE.Light).isLight && !(c as THREE.SpotLight).isSpotLight && !(c as THREE.PointLight).isPointLight) continue; // hemisphere
+      g.add(c);
+    }
+    for (const s of this.slots) s.root.remove(s.light);
+    this.lanterns.forEach((l, i) => { if (i >= 3) l.L.parent?.remove(l.L); });
+    const pl = plasterTex(8, [104, 78, 66]); pl.repeat.set(1, 1.2);
+    const wallMat = new THREE.MeshStandardMaterial({ map: pl, roughness: 1 });
+    // the front wall, with the doorway back into the library
+    for (const [x, w] of [[-3.5, 4], [3.5, 4]]) { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, 6), wallMat); m.position.set(x, 3, 5.38); m.rotation.y = Math.PI; g.add(m); }
+    const over = new THREE.Mesh(new THREE.PlaneGeometry(3, 1.8), wallMat); over.position.set(0, 5.1, 5.38); over.rotation.y = Math.PI; g.add(over);
+    // floor and ceiling cut to the room, so neither pokes through the doorway into the library
+    this.floor.geometry.dispose(); this.floor.geometry = new THREE.PlaneGeometry(8, 11);
+    this.floor.position.set(0, 0.002, 1.4);
+    const ceil = new THREE.Mesh(new THREE.PlaneGeometry(11, 8), new THREE.MeshStandardMaterial({ color: '#1a100c', roughness: 1 }));
+    ceil.rotation.x = Math.PI / 2; ceil.position.set(0, 6, 1.4); g.add(ceil);
+    this.host = g;
+    return g;
+  }
+
+  // world position -> this room's own space (for particles, once the room is built into the library)
+  private local(p: THREE.Vector3) { if (this.host) this.host.worldToLocal(p); return p; }
+
+  pickRay(rc: THREE.Raycaster): number {
+    const hits = rc.intersectObjects(this.slots.filter(s => s.item && !s.item.sold).map(s => s.pick), false);
+    if (!hits.length) return -1;
+    return this.slots.findIndex(s => s.pick === hits[0].object);
+  }
+
   markSold(i: number) {
     const s = this.slots[i];
     if (!s || !s.model) return;
     s.bought = 0.001;
-    const p = new THREE.Vector3(); s.model.getWorldPosition(p);
+    const p = new THREE.Vector3(); s.model.getWorldPosition(p); this.local(p);
     this.sparkles.burst(p.x, p.y, p.z, 60, '#ffe7a0', 3, 0.12, 1, { gravity: 0.5 });
     this.keeperJoy = 1;
   }
@@ -205,10 +240,10 @@ export class Shop implements View {
     return this.slots.findIndex(s => s.pick === hits[0].object);
   }
 
-  screenPos(i: number): { x: number; y: number; visible: boolean } {
+  screenPos(i: number, cam: THREE.Camera = this.camera): { x: number; y: number; visible: boolean } {
     const s = this.slots[i];
-    const p = new THREE.Vector3(); s.root.getWorldPosition(p); p.y -= 0.02; p.z += 0.45;
-    p.project(this.camera);
+    const p = new THREE.Vector3(0, -0.02, 0.45); s.root.localToWorld(p);
+    p.project(cam);
     return { x: (p.x * 0.5 + 0.5) * window.innerWidth, y: (-p.y * 0.5 + 0.5) * window.innerHeight, visible: p.z < 1 };
   }
 
@@ -234,7 +269,7 @@ export class Shop implements View {
         if (k >= 1) { s.model.visible = false; s.bought = 0; }
       }
       if (Math.random() < 0.08 + s.lift * 0.3) {
-        const p = new THREE.Vector3(); s.root.getWorldPosition(p);
+        const p = new THREE.Vector3(); s.root.getWorldPosition(p); this.local(p);
         const c = s.item?.kind === 'art' ? RARITY[ARTIFACTS[s.item.id].rarity].color : '#8fc8ff';
         if (!s.item?.sold) this.sparkles.emit({ x: p.x + (Math.random() - 0.5) * 0.6, y: p.y + 0.15, z: p.z + (Math.random() - 0.5) * 0.4, vy: 0.4 + Math.random() * 0.5, color: c, size: 0.05, life: 1.2, drag: 0.2 });
       }

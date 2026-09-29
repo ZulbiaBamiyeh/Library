@@ -32,9 +32,10 @@ export interface Run {
   staff: string | null;
   trinkets: (string | null)[];
   stash: string[];
-  // taken and peeked are keyed by book index, plus 100000 per level below the Reading Room
+  // taken and peeked are keyed by book index, plus 1000000 per level below the Reading Room
   lib: { borrows: number; candles: number; peeked: Record<number, boolean>; taken: Record<number, boolean>; forbidden: number; depth?: number };
   shop: { stock: ShopItem[]; rerolls: number; visited: boolean };
+  secret?: Record<number, ShopItem[]>; // the hidden shops in the depths, by floor, stocked when first found
   bindings: number;
   desk: { base: SpellInst | null; inf: SpellInst | null };
   phase: 'library' | 'shop' | 'desk' | 'duel';
@@ -88,6 +89,7 @@ export function prepareRound() {
   while (r.trinkets.length < trinketSlotsForRound(r.round)) r.trinkets.push(null);
   r.lib = { borrows: 3, candles: 5, peeked: {}, taken: {}, forbidden: 0 };
   r.shop = { stock: rollStock(r, 0), rerolls: 0, visited: false };
+  r.secret = {};
   r.bindings = bindingsForRound(r.round);
   r.phase = 'library';
   r.opponent = pickOpponent(r);
@@ -162,6 +164,25 @@ export function rollStock(r: Run, reroll: number): ShopItem[] {
   }
   const reag = shuffle(rng, REAGENT_LIST.slice()).slice(0, 2);
   for (const g of reag) out.push({ kind: 'reagent', id: g.id, sold: false });
+  return out;
+}
+
+// A hidden shop keeps only three things, and they are rarer the deeper it is.
+export function secretStock(r: Run, d: number): ShopItem[] {
+  if (!r.secret) r.secret = {};
+  if (r.secret[d]) return r.secret[d];
+  const rng = mulberry32(hashStr(`${r.id}:${r.round}:secret:${d}`));
+  const owned = new Set([r.staff, ...r.trinkets, ...r.stash, ...r.shop.stock.map(s => s.id)].filter(Boolean));
+  const w = [Math.max(0, 8 - d), 22, 36 + d * 3, 10 + d * 5];
+  const pool = ARTIFACT_LIST.filter(a => !owned.has(a.id) && a.id !== 'ashwood');
+  const out: ShopItem[] = [];
+  while (out.length < 3 && pool.length) {
+    if (out.length === 2 && rng() < 0.4) { out.push({ kind: 'reagent', id: REAGENT_LIST[Math.floor(rng() * REAGENT_LIST.length)].id, sold: false }); break; }
+    const a = weighted(rng, pool, x => w[x.rarity]);
+    pool.splice(pool.indexOf(a), 1);
+    out.push({ kind: 'art', id: a.id, sold: false });
+  }
+  r.secret[d] = out;
   return out;
 }
 

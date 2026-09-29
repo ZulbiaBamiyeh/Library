@@ -5,26 +5,32 @@ import { Shop } from './render/shop';
 import { Board } from './render/board';
 import { app, type Screen, type ScreenName } from './ui/app';
 import { titleScreen } from './ui/titleUI';
-import { libraryScreen } from './ui/libraryUI';
-import { shopScreen } from './ui/shopUI';
+import { enterShop, libraryScreen, setArrival } from './ui/libraryUI';
 import { deskScreen } from './ui/deskUI';
 import { duelScreen } from './ui/duelUI';
 import { loadRun, run } from './game/run';
 import { ambience, initAudio, isMuted, setMuted } from './audio/sfx';
 
-const screens: Record<ScreenName, Screen> = { title: titleScreen, library: libraryScreen, shop: shopScreen, desk: deskScreen, duel: duelScreen };
+// the Curio Shop is a room of the library, so going to the shop means walking into it there
+const screens: Record<Exclude<ScreenName, 'shop'>, Screen> = { title: titleScreen, library: libraryScreen, desk: deskScreen, duel: duelScreen };
 
 const canvas = document.getElementById('gl') as HTMLCanvasElement;
 app.engine = new Engine(canvas);
 app.library = new Library();
 app.shop = new Shop();
+app.library.attachShop(app.shop);
 app.board = new Board();
 loadRun();
 
 let current: Screen | null = null;
 let busy = false;
 let pending: ScreenName | null = null;
-app.go = (name: ScreenName) => {
+app.go = (to: ScreenName) => {
+  if (to === 'shop') {
+    if (app.screen === 'library' && !busy) { enterShop(); return; }
+    setArrival('shop');
+  }
+  let name: Exclude<ScreenName, 'shop'> = to === 'shop' ? 'library' : to;
   if (busy) { pending = name; return; }
   if (current && app.screen === name) return;
   if (name !== 'title' && !run) name = 'title';
@@ -36,7 +42,7 @@ app.go = (name: ScreenName) => {
     app.screen = name;
     current = screens[name];
     current.mount();
-    ambience(name === 'shop' ? 'shop' : name === 'duel' ? 'duel' : 'library');
+    ambience(name === 'duel' ? 'duel' : 'library');
     if (run && name !== 'title' && name !== 'duel') run.phase = name as typeof run.phase;
     setTimeout(() => {
       fade.classList.remove('on'); busy = false;

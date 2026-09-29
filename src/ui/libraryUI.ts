@@ -3,8 +3,11 @@ import { app, ui, type Screen } from './app';
 import { $, COARSE, closeModal, esc, goldHtml, modalOpen, pips, showModal, spellChip, toast } from './dom';
 import { run, saveRun, gainSpell } from '../game/run';
 import { SPELL_LIST, LIBRARY_SPELLS, SPELLS, ESS, FORM_INFO, usesLabel, type SpellDef } from '../data/spells';
-import { LEVELS } from '../render/library';
-import { REAGENT_LIST, REAGENTS } from '../data/artifacts';
+import { LEVELS, TAKEN_KEY } from '../render/library';
+import { openGear, openWare, paintTags, placeTags, setShopChanged, stockShops } from './shopPanel';
+import { ambience } from '../audio/sfx';
+import { ARTIFACTS, REAGENT_LIST, REAGENTS } from '../data/artifacts';
+import { stockOf } from './shopPanel';
 import { REACTIONS, COMPOUNDS, LEGENDARIES } from '../data/codex';
 import { codex, hint } from '../game/codex';
 import { hashStr, mulberry32, weighted } from '../sim/rng';
@@ -21,8 +24,8 @@ export function forgetLayout() { layoutKey = ''; }
 
 interface Contents { spells: string[]; reagent: string | null; hint: string | null }
 
-// ----- floors: books are remembered per floor, keyed by index plus 100000 per floor down -----
-const keyOf = (d: number, i: number) => (d ? d * 100000 + i : i);
+// ----- floors: books are remembered per floor, keyed by index plus TAKEN_KEY per floor down -----
+const keyOf = (d: number, i: number) => (d ? d * TAKEN_KEY + i : i);
 
 function bookContents(d: number, i: number): Contents {
   const r = run!;
@@ -36,7 +39,7 @@ function bookContents(d: number, i: number): Contents {
   const base = b.chained ? [0, 1, 1.4] : [[1, 0.25, 0.06], [1, 0.7, 0.2], [0.6, 1, 0.6]][b.size];
   const wts = [base[0] * Math.max(0.08, 1 - 0.3 * d), base[1] * (1 + 0.4 * d), base[2] * (1 + 0.8 * d)];
   const stray = (x: SpellDef) => (b.chained || x.school === b.school ? 1 : 0.2);
-  const hidden = (1 + 2.5 * b.far * b.far) * (b.nook ? 3 : 1);
+  const hidden = (1 + 2.5 * b.far * b.far) * (b.nook ? 3 : 1) * (b.hidden ? 4 : 1);
   const weight = (x: SpellDef) => x.depth ? 0.12 * (1 + 0.4 * (d - x.depth)) * hidden * (b.chained || b.glowing ? 2 : 1) : (wts[x.rarity] || 0.01) * stray(x);
   const spells: string[] = [];
   const count = b.glowing ? 2 : 3;
@@ -44,7 +47,7 @@ function bookContents(d: number, i: number): Contents {
     const s = weighted(rng, pool, weight);
     spells.push(s.id); pool = pool.filter(p => p !== s);
   }
-  const reagent = (b.chained || (b.size === 2 && rng() < 0.4 + d * 0.08) || rng() < d * 0.04) ? REAGENT_LIST[Math.floor(rng() * REAGENT_LIST.length)].id : null;
+  const reagent = (b.chained || (b.size === 2 && rng() < 0.4 + d * 0.08) || rng() < d * 0.04 + (b.hidden ? 0.12 : 0)) ? REAGENT_LIST[Math.floor(rng() * REAGENT_LIST.length)].id : null;
   let h: string | null = null;
   if (b.glowing) {
     const unknown = [...REACTIONS.map(x => x.id), ...Object.values(COMPOUNDS).map(c => c.id), ...LEGENDARIES.map(l => l.id)].filter(id => !codex.found.includes(id) && !codex.hinted.includes(id));
@@ -83,10 +86,9 @@ function renderHud() {
     b.onclick = () => confirmBurn(i);
     sat.appendChild(b);
   });
-  const hintEl = $('#lib-hint');
-  hintEl.textContent = COARSE ? 'Drag to look, use the stick to walk, tap a book to open it. The shop is east, the Duelling Ring west, and the stairwell north goes down.' : 'Mouse to look, WASD to walk, Space to jump, Shift to run, click a book to open it. Shop east, Duelling Ring west; the stairwell in the north aisle goes down, or jump in.';
-  if (r.lib.borrows === 0) hintEl.textContent = 'You have borrowed three books. Visit the Curio Shop, or go to the Binding Desk.';
-  hintEl.style.display = d > 0 ? 'none' : ''; // no captions below the Reading Room
+  void d;
+  const tb = document.getElementById('tag-box');
+  if (tb) paintTags(tb, shopHere);
 }
 
 function confirmBurn(i: number) {
@@ -194,7 +196,7 @@ function enterRing() {
   if (r.bindings > 0 && spare + r.lines.filter(Boolean).length >= 2) notes.push(`${r.bindings} binding${r.bindings > 1 ? 's' : ''} left this round.`);
   const opp = r.opponent;
   showModal(`<div class="sheet" role="dialog" aria-label="The Duelling Ring"><h2 style="font-size:30px">The Duelling Ring</h2>
-    <p class="lead">${opp ? `<b>${esc(opp.name)}</b>${opp.title ? ` (${esc(opp.title)})` : ''} waits in the circle.` : 'A ghost waits in the circle.'} Once you step through, the round is fought.</p>
+    ${opp ? `<p class="lead">Opponent: <b>${esc(opp.name)}</b>${opp.title ? ` (${esc(opp.title)})` : ''}</p>` : ''}
     ${notes.length ? `<ul class="warn" style="margin-top:10px">${notes.map(n => `<li>${n}</li>`).join('')}</ul>` : ''}
     <div class="actions"><button class="btn gold" id="m-ring">Step into the Ring</button><button class="btn quiet" id="m-desk">Binding Desk</button><button class="btn quiet" id="m-stay">Not yet</button></div></div>`);
   play('door');
@@ -204,7 +206,28 @@ function enterRing() {
 }
 
 function tipText(p: NonNullable<ReturnType<typeof app.library.pick>>): string {
-  return p.kind === 'book' ? app.library.book(p.d, p.i).title : p.kind === 'door' ? 'Curios & Oddments' : p.kind === 'arena' ? 'The Duelling Ring' : 'The Binding Desk';
+  if (p.kind === 'ware') {
+    const it = stockOf(p.shop)[p.i];
+    return it.kind === 'art' ? ARTIFACTS[it.id].name : REAGENTS[it.id].name;
+  }
+  return p.kind === 'book' ? app.library.book(p.d, p.i).title : p.kind === 'arena' ? 'The Duelling Ring' : 'The Binding Desk';
+}
+
+// ----- the shops: the Curio Shop behind the east doorway, and whatever is kept in the depths -----
+let shopHere: number | null = null;
+function setShopHere(s: number | null) {
+  if (s === shopHere) return;
+  shopHere = s;
+  const tb = document.getElementById('tag-box');
+  if (tb) paintTags(tb, s);
+  if (s === -1 && run && !run.shop.visited) { run.shop.visited = true; saveRun(); }
+  ambience(s === -1 ? 'shop' : 'library');
+}
+// Walk straight into the Curio Shop (from a button, or arriving from the desk).
+export function enterShop() {
+  const lib = app.library;
+  lib.pos.set(10.7, 1.62, 0); lib.eyeH = 1.62; lib.yaw = -Math.PI / 2; lib.pitch = -0.16; lib.vy = 0; lib.crouch = false;
+  play('door');
 }
 
 // ----- input -----
@@ -226,30 +249,37 @@ export const libraryScreen: Screen = {
     }
     lib.onLevel = onFloor;
     lib.onLand = (speed) => { if (speed > 16) { play('block'); app.library.embers.burst(lib.pos.x, lib.pos.y - 1.5, lib.pos.z, 20, LEVELS[lib.level].mote, 2.5, 0.08, 0.8, { gravity: 2 }); } };
-    // coming in from another room puts you back in the Reading Room
-    if (arrivedFrom === 'shop') { lib.pos.set(8.2, 1.62, 0); lib.yaw = Math.PI / 2; lib.pitch = 0; lib.vy = 0; }
-    if (arrivedFrom === 'desk' || arrivedFrom === 'title') { lib.pos.set(0, 1.62, 6.4); lib.yaw = 0; lib.pitch = -0.05; lib.vy = 0; }
+    // coming in from another room puts you back in the Reading Room (or in the shop, if that is where you were going)
+    if (arrivedFrom === 'shop') enterShop();
+    if (arrivedFrom === 'desk' || arrivedFrom === 'title') { lib.pos.set(0, 1.62, 6.4); lib.eyeH = 1.62; lib.yaw = 0; lib.pitch = -0.05; lib.vy = 0; lib.crouch = false; }
     arrivedFrom = null;
     app.engine.setView(lib);
     ui().innerHTML = `
       <div class="topbar"><div class="plate round-info" id="lib-round"></div><div class="plate counters" id="lib-counters"></div></div>
-      <div id="lib-hint"></div><div id="crosshair"></div>
-      <div id="look-prompt" class="hidden">Click to look around · Esc frees the mouse</div>
+      <div id="crosshair"></div><div id="tag-box"></div>
+      <div id="look-prompt" class="hidden">Click to look around · WASD walk · Shift run · Space jump · C crouch · I curios · Esc frees the mouse</div>
+      <button id="crouch-btn" class="btn quiet small ${COARSE ? '' : 'hidden'}" aria-pressed="false">Crouch</button>
       <div id="joystick" class="${COARSE ? '' : 'hidden'}"><div class="knob"></div></div>
       <div id="hover-tip" class="hidden"></div>
       <div class="lib-bottom">
         <div class="plate satchel"><div class="satchel-label">Satchel · tap a spell to burn it</div><div class="satchel-row" id="lib-satchel"></div></div>
-        <div class="nav-btns"><button class="btn quiet" id="to-ring" aria-label="Duelling Ring">← <span class="nl">Duelling </span>Ring</button><button class="btn quiet" id="to-shop" aria-label="Curio Shop"><span class="nl">Curio </span>Shop →</button><button class="btn gold" id="to-desk" aria-label="Binding Desk"><span class="nl">Binding </span>Desk</button></div>
+        <div class="nav-btns"><button class="btn quiet" id="to-ring" aria-label="Duelling Ring">← <span class="nl">Duelling </span>Ring</button><button class="btn quiet" id="to-gear" aria-label="Your curios">Curios</button><button class="btn quiet" id="to-shop" aria-label="Curio Shop"><span class="nl">Curio </span>Shop →</button><button class="btn gold" id="to-desk" aria-label="Binding Desk"><span class="nl">Binding </span>Desk</button></div>
       </div>`;
+    shopHere = null;
+    stockShops();
+    setShopChanged(() => { renderHud(); });
     renderHud();
-    $('#to-shop').onclick = () => app.go('shop');
+    $('#to-shop').onclick = () => { if (lib.inShop() !== -1) enterShop(); };
+    $('#to-gear').onclick = () => openGear(lib.inShop());
+    const cb = $('#crouch-btn');
+    cb.onclick = () => { lib.crouch = !lib.crouch; cb.setAttribute('aria-pressed', String(lib.crouch)); cb.classList.toggle('on', lib.crouch); };
     $('#to-ring').onclick = enterRing;
     $('#to-desk').onclick = () => app.go('desk');
     const canvas = app.engine.renderer.domElement;
     const active = () => app.screen === 'library' && !modalOpen();
     const act = (p: ReturnType<typeof lib.pick>) => {
       if (p?.kind === 'book') openBook(p.d, p.i);
-      else if (p?.kind === 'door') app.go('shop');
+      else if (p?.kind === 'ware') openWare(p.shop, p.i);
       else if (p?.kind === 'desk') app.go('desk');
       else if (p?.kind === 'arena') enterRing();
     };
@@ -307,6 +337,7 @@ export const libraryScreen: Screen = {
       if (e.code === 'Escape') { closeModal(); return; }
       if (!active()) return;
       if (e.code === 'Space') { e.preventDefault(); lib.jump(); return; }
+      if (e.code === 'KeyI' || e.code === 'Tab') { e.preventDefault(); openGear(lib.inShop()); return; }
       lib.keys[e.code] = true;
     }) as EventListener);
     on(window, 'keyup', ((e: KeyboardEvent) => { lib.keys[e.code] = false; }) as EventListener);
@@ -332,12 +363,16 @@ export const libraryScreen: Screen = {
     app.library.keys = {}; app.library.joy = { x: 0, y: 0 };
     app.library.setHover(null);
     app.library.onLevel = undefined; app.library.onLand = undefined;
+    app.library.crouch = false;
+    setShopHere(null);
+    setShopChanged(() => {});
     if (document.pointerLockElement) document.exitPointerLock();
     app.engine.renderer.domElement.style.cursor = '';
     closeModal();
   },
   tick() {
-    if (app.library.atDoor() && !modalOpen()) { app.library.pos.x = 8.6; app.go('shop'); }
+    setShopHere(app.library.inShop());
+    placeTags();
     if (app.library.atArena() && !modalOpen()) enterRing();
     // with the mouse captured, whatever sits under the crosshair is what you would click
     const cv = app.engine.renderer.domElement;
