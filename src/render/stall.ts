@@ -69,6 +69,22 @@ export class Stall {
       this.wares.push({ root, model: null, ring, pick, item: null, spin: x * 3, lift: 0, bought: 0, staff: false });
     });
     this.dress(M.look, r, std, add);
+    // keep it all dim: these are candlelit corners, not beacons
+    g.traverse(o => Stall.dim(o, 0.45));
+    this.keeper.traverse(o => Stall.dim(o, 0.6)); // and the keeper's own eyes and auras a little more
+  }
+
+  private static dim(o: THREE.Object3D, k: number) {
+    const sp = o as THREE.Sprite;
+    if (sp.isSprite) { const m = sp.material as THREE.SpriteMaterial; m.opacity *= k; return; }
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    for (const m of (Array.isArray(mesh.material) ? mesh.material : [mesh.material]) as THREE.Material[]) {
+      const st = m as THREE.MeshStandardMaterial;
+      if (st.emissiveIntensity !== undefined && st.emissive) st.emissiveIntensity *= 0.55;
+      const b = m as THREE.MeshBasicMaterial;
+      if ((b as THREE.Material).type === 'MeshBasicMaterial' && b.blending === THREE.AdditiveBlending) b.opacity *= 0.7;
+    }
   }
 
   // Everything around the table that makes the place what it is.
@@ -87,7 +103,7 @@ export class Stall {
         const line = add(new THREE.Mesh(new THREE.PlaneGeometry(len, 0.06), glowMat('#ff2a1a', 0.5)), mid.x, 0.021, mid.z - 0.2);
         line.rotation.x = -Math.PI / 2; line.rotation.z = -Math.atan2(p1.z - p0.z, p1.x - p0.x);
       }
-      this.anim.push(t => { (circle.material as THREE.MeshBasicMaterial).opacity = 0.55 + Math.sin(t * 2) * 0.2; });
+      this.anim.push(t => { (circle.material as THREE.MeshBasicMaterial).opacity = 0.38 + Math.sin(t * 2) * 0.12; });
       const iron = std('#1a1010', { metalness: 0.7, roughness: 0.4 });
       for (const x of [-1.75, 1.75]) {
         add(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.12, 1.0, 6), iron), x, 0.5, 0.1);
@@ -214,6 +230,7 @@ export class Stall {
       }
       w.staff = spec.kind.startsWith('staff');
       if (w.staff) { m.scale.setScalar(0.5); m.rotation.z = 0.25; } else m.scale.setScalar(1.0);
+      m.traverse(o => Stall.dim(o, 0.6));
       w.model = m; w.root.add(m);
       (w.ring.material as THREE.MeshBasicMaterial).color.set(this.def.ring || (it.kind === 'art' ? RARITY[ARTIFACTS[it.id].rarity].color : '#8fc8ff'));
       m.visible = !it.sold;
@@ -239,7 +256,7 @@ export class Stall {
       w.spin += dt * (0.4 + w.lift * 1.5);
       w.model.rotation.y = w.spin;
       w.model.position.y = (w.staff ? 0.08 : 0.4) + w.lift * 0.15 + Math.sin(time * 1.4 + i) * 0.025;
-      (w.ring.material as THREE.MeshBasicMaterial).opacity = 0.3 + w.lift * 0.5 + Math.sin(time * 2 + i) * 0.08;
+      (w.ring.material as THREE.MeshBasicMaterial).opacity = 0.2 + w.lift * 0.45 + Math.sin(time * 2 + i) * 0.08;
       if (w.bought > 0) {
         w.bought += dt;
         const k = Math.min(1, w.bought / 0.6);
@@ -255,7 +272,7 @@ export class Stall {
     this.sold = Math.max(0, this.sold - dt * 0.8);
     this.keeper.rotation.x = Math.sin(this.sold * Math.PI) * 0.25;
     this.keeper.position.y = this.base + Math.sin(time * 1.3) * 0.02;
-    this.lamp.scale.setScalar(0.9 + Math.sin(time * 9) * 0.05);
+    this.lamp.scale.setScalar(0.7 + Math.sin(time * 9) * 0.04);
     for (const f of this.anim) f(time);
   }
 }

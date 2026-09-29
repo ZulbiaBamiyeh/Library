@@ -915,7 +915,7 @@ export class Library implements View {
         const pts = [fw.clone().multiplyScalar(0.4).addScaledVector(side, 2.0), fw.clone().multiplyScalar(0.4).addScaledVector(side, -2.0), fw.clone().multiplyScalar(-1.6).addScaledVector(side, 2.0), fw.clone().multiplyScalar(-1.6).addScaledVector(side, -2.0)];
         colliders.push({ x0: mx + Math.min(...pts.map(p => p.x)), x1: mx + Math.max(...pts.map(p => p.x)), z0: mz + Math.min(...pts.map(p => p.z)), z1: mz + Math.max(...pts.map(p => p.z)) });
         shopStands.add(stands.length);
-        stands.push(new THREE.Vector3(mx, 0, mz).addScaledVector(fw, 0.9));
+        stands.push(new THREE.Vector3(mx, 0, mz).addScaledVector(fw, 2.4)); // lights the room from in front, not the keeper's face
       });
       // candle stands, all drawn at once
       const wax = new THREE.MeshStandardMaterial({ color: '#eae0c2', emissive: new THREE.Color('#332a18'), roughness: 0.6 });

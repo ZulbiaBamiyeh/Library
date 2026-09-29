@@ -264,13 +264,12 @@ export const libraryScreen: Screen = {
       <div id="hover-tip" class="hidden"></div>
       <div class="lib-bottom">
         <div class="plate satchel"><div class="satchel-label">Satchel · tap a spell to burn it</div><div class="satchel-row" id="lib-satchel"></div></div>
-        <div class="nav-btns"><button class="btn quiet" id="to-ring" aria-label="Duelling Ring">← <span class="nl">Duelling </span>Ring</button><button class="btn quiet" id="to-gear" aria-label="Your curios">Curios</button><button class="btn quiet" id="to-shop" aria-label="Curio Shop"><span class="nl">Curio </span>Shop →</button><button class="btn gold" id="to-desk" aria-label="Binding Desk"><span class="nl">Binding </span>Desk</button></div>
+        <div class="nav-btns"><button class="btn quiet" id="to-ring" aria-label="Duelling Ring">← <span class="nl">Duelling </span>Ring</button><button class="btn quiet" id="to-gear" aria-label="Your curios">Curios</button><button class="btn gold" id="to-desk" aria-label="Binding Desk"><span class="nl">Binding </span>Desk</button></div>
       </div>`;
     shopHere = null;
     stockShops();
     setShopChanged(() => { renderHud(); });
     renderHud();
-    $('#to-shop').onclick = () => { if (lib.inShop() !== -1) enterShop(); };
     $('#to-gear').onclick = () => openGear(lib.inShop());
     const cb = $('#crouch-btn');
     cb.onclick = () => { lib.crouch = !lib.crouch; cb.setAttribute('aria-pressed', String(lib.crouch)); cb.classList.toggle('on', lib.crouch); };
