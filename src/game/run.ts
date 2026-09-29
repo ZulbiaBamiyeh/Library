@@ -168,24 +168,24 @@ export function rollStock(r: Run, reroll: number): ShopItem[] {
   return out;
 }
 
-// A hidden shop keeps only three things: one oddity of its keeper's school that no other shop sells,
-// and two more curios of that school, rarer the deeper it is. Keyed by stall (floor × 10 + place).
+// A hidden shop keeps only three things: two of its keeper's oddities, which no other shop sells, and a
+// curio of its keeper's schools, rarer the deeper it is. Keyed by stall (floor × 10).
 export function secretStock(r: Run, key: number): ShopItem[] {
   if (!r.secret) r.secret = {};
   if (r.secret[key]) return r.secret[key];
-  const d = Math.floor(key / 10), ess = STALL_BY_KEY[key]?.ess;
+  const def = STALL_BY_KEY[key], d = Math.floor(key / 10);
   const rng = mulberry32(hashStr(`${r.id}:${r.round}:secret:${key}`));
   const taken = new Set([r.staff, ...r.trinkets, ...r.stash, ...r.shop.stock.map(s => s.id), ...Object.values(r.secret).flat().map(s => s.id)].filter(Boolean));
-  const w = [Math.max(0, 8 - d), 22, 36 + d * 3, 10 + d * 5];
-  const free = ARTIFACT_LIST.filter(a => !taken.has(a.id) && a.id !== 'ashwood');
+  const w = [Math.max(0, 6 - d), 18, 36 + d * 3, 12 + d * 5];
   const out: ShopItem[] = [];
-  const take = (pool: typeof free) => { if (!pool.length) return; const a = weighted(rng, pool, x => w[x.rarity] + 1); free.splice(free.indexOf(a), 1); out.push({ kind: 'art', id: a.id, sold: false }); };
-  take(free.filter(a => a.shopOnly && a.ess === ess));
-  if (!out.length) take(free.filter(a => a.shopOnly));
+  const odd = shuffle(rng, (def?.odd || []).filter(id => ARTIFACTS[id] && !taken.has(id)));
+  for (const id of odd.slice(0, 2)) out.push({ kind: 'art', id, sold: false });
+  const themed = ARTIFACT_LIST.filter(a => !a.shopOnly && !taken.has(a.id) && a.id !== 'ashwood' && a.ess && def?.ess.includes(a.ess));
+  const any = ARTIFACT_LIST.filter(a => !a.shopOnly && !taken.has(a.id) && a.id !== 'ashwood');
   while (out.length < 3) {
-    const themed = free.filter(a => !a.shopOnly && a.ess === ess);
-    if (out.length === 2 && rng() < 0.3) { out.push({ kind: 'reagent', id: REAGENT_LIST[Math.floor(rng() * REAGENT_LIST.length)].id, sold: false }); break; }
-    if (themed.length) take(themed); else if (free.length) take(free.filter(a => !a.shopOnly).length ? free.filter(a => !a.shopOnly) : free); else break;
+    const pool = (themed.length ? themed : any).filter(a => !out.some(o => o.id === a.id));
+    if (!pool.length) break;
+    out.push({ kind: 'art', id: weighted(rng, pool, x => w[x.rarity] + 1).id, sold: false });
   }
   r.secret[key] = out;
   return out;

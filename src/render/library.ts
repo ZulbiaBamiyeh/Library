@@ -22,13 +22,14 @@ const H0 = 19; // the Reading Room rises through two galleries to a ceiling this
 const T1 = 6.6, T2 = 12.8; // the galleries' floors
 const C = 2; // the floor plans are drawn on a grid of 2-unit cells
 // the stairwell: a round shaft through every floor, the stair clinging to its wall, open in the middle
-const WELL = new THREE.Vector3(0, 0, -3);
+const WELL = new THREE.Vector3(0, 0, -16); // in its own stair tower, north of the hall on every floor
 const WELL_R = 4.4; // the hole in each floor
 const STAIR_IN = 2.3, STAIR_OUT = 4.38; // the steps run between these radii; inside is a straight drop
 const CASE_IN = 3.95; // a bookcase winds down the outer edge of the stair, from here to STAIR_OUT
 const CASE_H = 2.6; // and stands this tall above the steps
 const CASE_GAP = 0.42; // the case opens this far (radians) either side of each landing
 const LAND_GAP = 0.34; // and so does the brass rail round the hole
+const LEVELS_COUNT = 8;
 const PITCH = LH; // one full turn of the stair per floor
 const A0 = Math.PI / 2; // the landing on every floor faces south, into the hall
 const STEP_UP = 0.5;
@@ -37,8 +38,11 @@ const EYE_LOW = 0.95; // eye height when crouching
 const STAND = 1.9; // a ceiling lower than this has to be crawled under
 const SECTOR = 16; // books and shelves are drawn in blocks this wide, so far-off blocks can be skipped
 export const TAKEN_KEY = 1000000; // taken books are keyed by index plus this much per floor down
-// the Curio Shop, through the Reading Room's east doorway (the part you can walk in)
-const SHOP = { x0: R, x1: 14.1, z: 5.1 };
+// on the Reading Room's south wall, either side of the desk: the Curio Shop's door and the Duelling Ring's arch
+const SHOP_X = 6, RING_X = -6;
+const SHOP_DEPTH = 4.1; // how far you can walk into the shop, past the doorway
+const ARCH_W = 2.5, ARCH_H = 6; // the arch through to the stair tower, in the north wall
+const TOWER = { x0: -6, x1: 6, z0: -22, z1: -10 };
 
 export interface Book {
   face: number; row: number; x: number; w: number; h: number; lean: number;
@@ -132,9 +136,27 @@ export const LEVELS: LevelDef[] = [
     titles: ['[this title has been eaten]', 'The Book That Reads You', 'Untitled', '—', 'What the Ink Remembers', 'The First Word', 'Do Not Finish This', 'The Author, Annotated', 'Blank', 'You Were Here Before'] },
 ];
 export const DEEPEST = LEVELS.length - 1;
-const HALL_CANDLES: [number, number][] = [[-6.5, -8.6], [6.5, -8.6], [-4.9, 6.6], [4.9, 6.6], [-5.2, 1.8], [5.2, 1.8]];
-// free-standing double shelves in the hall, running north-south either side of the stairwell
-const HALL_ROWS: [number, number][] = [[-7.2, -6.6], [7.2, -6.6], [-7.2, 4.2], [7.2, 4.2]];
+const HALL_CANDLES: [number, number][] = [[-5, -7.8], [5, -7.8], [-5, 4.4], [5, 4.4], [-8.6, 5], [8.6, 5]];
+// free-standing double shelves in the middle of the hall, two rows of four with an aisle down the centre
+const HALL_ROWS: [number, number][] = [];
+for (const z of [-4.2, 1.2]) for (const x of [-4.8, -2, 2, 4.8]) HALL_ROWS.push([x, z]);
+
+// A spiral stair between floors: the great one in the stair tower, and smaller ones out in the wings.
+// It descends `pitch` per turn from floor `top` to floor `bot`, landing at angle a0 on each floor it meets.
+export interface Spiral {
+  x: number; z: number; rIn: number; rOut: number; rHole: number; pitch: number; a0: number;
+  top: number; bot: number; main: boolean; sq: number; // sq: half the width of the ceiling patch cut for it
+  gap: number; // the rail's opening at the landing, in radians
+  slab: number[]; // per floor from top to bot - 1: the height of the shaft between that floor and the ceiling below
+}
+const MAIN_SPIRAL: Spiral = { x: WELL.x, z: WELL.z, rIn: STAIR_IN, rOut: STAIR_OUT, rHole: WELL_R, pitch: PITCH, a0: A0, top: 0, bot: LEVELS_COUNT - 1, main: true, sq: 6, gap: LAND_GAP, slab: [] };
+
+// a rectangle of floor or ceiling with round holes cut in it (x, z in the floor's own coordinates)
+function holedRect(x0: number, x1: number, z0: number, z1: number, holes: { x: number; z: number; r: number }[]): THREE.ShapeGeometry {
+  const s = new THREE.Shape([new THREE.Vector2(x0, -z1), new THREE.Vector2(x1, -z1), new THREE.Vector2(x1, -z0), new THREE.Vector2(x0, -z0)]);
+  for (const h of holes) { const p = new THREE.Path(); p.absarc(h.x, -h.z, h.r, 0, Math.PI * 2, true); s.holes.push(p); }
+  return new THREE.ShapeGeometry(s, 40);
+}
 
 // A painted sign whose text is measured to fit its frame, redrawn once the serif font has loaded.
 function signTexture(lines: string[], o: { bg: string; border: string; ink: string; w?: number; h?: number }): THREE.CanvasTexture {
@@ -162,11 +184,6 @@ function signTexture(lines: string[], o: { bg: string; border: string; ink: stri
   return tex;
 }
 
-function holedSquare(half: number, holeR: number): THREE.ShapeGeometry {
-  const s = new THREE.Shape([new THREE.Vector2(-half, -half), new THREE.Vector2(half, -half), new THREE.Vector2(half, half), new THREE.Vector2(-half, half)]);
-  if (holeR > 0) { const hole = new THREE.Path(); hole.absarc(WELL.x, -WELL.z, holeR, 0, Math.PI * 2, true); s.holes.push(hole); }
-  return new THREE.ShapeGeometry(s, 48);
-}
 
 // Draw the plan of one floor: the central hall with the stair, then wings grown outward from it. Some wings
 // are only reached by crawling: a low passage into a hidden room. The same floor always has the same plan.
@@ -186,6 +203,8 @@ function makePlan(d: number): Plan {
   };
   const hall: Room = { id: 0, kind: 'hall', ix0: N / 2 - 5, iz0: N / 2 - 5, ix1: N / 2 + 5, iz1: N / 2 + 5, ceil: H };
   rooms.push(hall); carve(hall);
+  // the stair tower, a square room north of the hall around the great spiral stair
+  if (d > 0) { const tower: Room = { id: 1, kind: 'hall', ix0: N / 2 - 3, iz0: N / 2 - 11, ix1: N / 2 + 3, iz1: N / 2 - 5, ceil: H }; rooms.push(tower); carve(tower); }
   const shops: number[] = [];
   const secret = new Uint8Array(N * N); // cells of crawlspaces and hidden rooms: nothing else may touch them
   if (d > 0) {
@@ -285,6 +304,51 @@ function makePlan(d: number): Plan {
   return { N, half, walk, ceil, room, rooms, edges, shops };
 }
 
+// Find places for the smaller spiral stairs: a square of open floor on one level with an open room of even
+// height straight below it, out in the wings, well away from the great stair and from each other.
+function findSpirals(plans: Plan[]): Spiral[] {
+  const out: Spiral[] = [];
+  const cellAt = (P: Plan, x: number, z: number) => {
+    const ix = Math.floor(x / C + P.N / 2), iz = Math.floor(z / C + P.N / 2);
+    return ix < 0 || iz < 0 || ix >= P.N || iz >= P.N ? -1 : iz * P.N + ix;
+  };
+  const SQ = 4; // half the square that must be clear
+  const ok = (P: Plan, x: number, z: number, below: boolean) => {
+    let ceil = -1, rid = -2;
+    for (let dz = -SQ + 1; dz < SQ; dz += C) for (let dx = -SQ + 1; dx < SQ; dx += C) {
+      const k = cellAt(P, x + dx, z + dz);
+      if (k < 0 || !P.walk[k]) return false;
+      const rm = P.rooms[P.room[k]];
+      if (rm.kind !== 'room' && rm.kind !== 'gallery' && rm.kind !== 'corridor') return false;
+      if (P.shops.includes(rm.id)) return false;
+      if (below) { if (ceil < 0) ceil = P.ceil[k]; else if (Math.abs(ceil - P.ceil[k]) > 0.01) return false; if (P.ceil[k] < 3.2) return false; }
+      if (rid === -2) rid = rm.id;
+    }
+    return below ? ceil : true;
+  };
+  for (let d = 1; d < plans.length - 1; d++) {
+    const A = plans[d], B = plans[d + 1];
+    const rng = mulberry32(4401 + d * 97);
+    const cands: [number, number, number][] = [];
+    const half = Math.min(A.half, B.half) - SQ - 2;
+    for (let z = -half; z <= half; z += C) for (let x = -half; x <= half; x += C) {
+      if (Math.hypot(x - WELL.x, z - WELL.z) < 22 || Math.hypot(x, z) < 16) continue;
+      if (!ok(A, x, z, false)) continue;
+      const c = ok(B, x, z, true) as number | false;
+      if (c === false) continue;
+      cands.push([x, z, c]);
+    }
+    const mine: Spiral[] = [];
+    for (let tries = 0; tries < 60 && mine.length < 2 && cands.length; tries++) {
+      const [x, z, c] = cands[Math.floor(rng() * cands.length)];
+      if ([...mine, ...out].some(sp => Math.hypot(sp.x - x, sp.z - z) < 26)) continue;
+      mine.push({ x, z, rIn: 0.34, rOut: 2.0, rHole: 2.05, pitch: 4, a0: Math.floor(rng() * 4) * Math.PI / 2, top: d, bot: d + 1, main: false, sq: SQ, gap: 0.62, slab: [LH - c] });
+    }
+    out.push(...mine);
+  }
+  return out;
+}
+
 // One floor of the library.
 interface Floor {
   d: number;
@@ -313,6 +377,7 @@ export class Library implements View {
   exposure = 1.15;
   vignette = 1.0;
   floors: Floor[] = [];
+  spirals: Spiral[] = [];
   deskCollider: Box = { x0: -1.7, x1: 1.7, z0: 7.6, z1: 9.2 };
   private qLevel = -1; // the graphics quality last applied
   private drawScale = 1;
@@ -332,6 +397,7 @@ export class Library implements View {
   joy = { x: 0, y: 0 };
   titleSpin = true;
   candleLights: THREE.PointLight[] = [];
+  private hallLights: THREE.PointLight[] = [];
   arenaLight: THREE.PointLight;
   deskLight: THREE.PointLight;
   wellLight = new THREE.PointLight('#ffffff', 0, 12, 1.4);
@@ -367,6 +433,8 @@ export class Library implements View {
     this.hemi = new THREE.HemisphereLight('#7a70a0', '#2a1a10', 0.55); S.add(this.hemi);
     const moon = new THREE.DirectionalLight('#8aa0ff', 0.35); moon.position.set(-4, 10, 3); S.add(moon);
     S.add(this.lantern, this.wellLight);
+    // two warm lights hung in the Reading Room's open middle, so the galleries are not left in the dark
+    for (const [x, y, z] of [[0, 14.5, -1.5], [0, 9.5, 2]]) { const Lh = new THREE.PointLight('#ffc890', 0, 26, 1.1); Lh.position.set(x, y, z); S.add(Lh); this.hallLights.push(Lh); }
     // a fixed pool of candle lights that follows you to the nearest candles, so the light count never changes
     for (const [x, z] of HALL_CANDLES) { const L = new THREE.PointLight('#ffa860', 14, 12, 1.7); L.position.set(x, 2.1, z); S.add(L); this.candleLights.push(L); }
 
@@ -382,19 +450,26 @@ export class Library implements View {
     const brass = new THREE.MeshStandardMaterial({ color: '#8a6a30', metalness: 0.8, roughness: 0.35 });
     const shaftTex = plasterTex(9, [58, 52, 64]); shaftTex.repeat.set(3, 0.5);
     const doorW = 3, doorH = 4.2;
-    const sideParts: [number, number, number, number][] = [[-(R + doorW / 2) / 2, H0 / 2, R - doorW / 2, H0], [(R + doorW / 2) / 2, H0 / 2, R - doorW / 2, H0], [0, doorH + (H0 - doorH) / 2, doorW, H0 - doorH]];
     const clothMat = new THREE.MeshStandardMaterial({ color: '#6a2230', roughness: 1 });
 
+    // every floor's plan first, so the smaller stairs can be put where there is room both above and below
+    const plans = LEVELS.map((_, d) => makePlan(d));
+    const main: Spiral = { ...MAIN_SPIRAL, bot: DEEPEST, slab: LEVELS.map(() => LH - H) };
+    this.spirals = [main, ...findSpirals(plans)];
     for (let d = 0; d < LEVELS.length; d++) {
       const L = LEVELS[d];
-      const plan = makePlan(d);
+      const plan = plans[d];
+      const holesHere = this.spirals.filter(sp => sp.top <= d && d < sp.bot); // stairs going down through this floor
+      const passing = this.spirals.filter(sp => sp.top < d && d <= sp.bot); // stairs coming down into this floor
+      const nearSpiral = (x: number, z: number, pad: number) => this.spirals.some(sp => !sp.main && sp.top <= d && d <= sp.bot && Math.hypot(x - sp.x, z - sp.z) < sp.rHole + pad);
       const g = new THREE.Group(); g.position.y = -d * LH; S.add(g);
       const floorMat = new THREE.MeshStandardMaterial({ map: fs.map, normalMap: fs.normal, roughnessMap: fs.rough, color: L.floor });
       const wallMat = new THREE.MeshStandardMaterial({ map: pl, roughness: 0.95, color: L.wall });
       const segMat = new THREE.MeshStandardMaterial({ map: plSeg, roughness: 0.95, color: L.wall, side: THREE.DoubleSide });
       const woodMat = new THREE.MeshStandardMaterial({ map: woodMap, roughness: 0.8, color: L.wood });
       const ceilMat = new THREE.MeshStandardMaterial({ color: L.ceil, roughness: 1, side: THREE.DoubleSide });
-      const floor = new THREE.Mesh(holedSquare(plan.half, d < DEEPEST ? WELL_R : 0), floorMat); floor.rotation.x = -Math.PI / 2; g.add(floor);
+      const floorGeo = d === 0 ? holedRect(-R, R, -R, R, []) : holedRect(-plan.half, plan.half, -plan.half, plan.half, holesHere.map(sp => ({ x: sp.x, z: sp.z, r: sp.rHole })));
+      const floor = new THREE.Mesh(floorGeo, floorMat); floor.rotation.x = -Math.PI / 2; g.add(floor);
       const faces: Omit<Face, 'tan' | 'nrm' | 'rot'>[] = [];
       const colliders: Box[] = [];
       const stands: THREE.Vector3[] = [];
@@ -470,15 +545,36 @@ export class Library implements View {
       };
 
       if (d === 0) {
-        // the Reading Room: a tall hall with two galleries above it, doorways east and west
-        const ceil = new THREE.Mesh(holedSquare(R, 0), ceilMat); ceil.rotation.x = Math.PI / 2; ceil.position.y = H0; g.add(ceil);
-        for (const [x, z, ry] of [[0, -R, 0], [0, R, Math.PI]] as const) { const w = new THREE.Mesh(new THREE.PlaneGeometry(2 * R, H0), wallMat); w.position.set(x, H0 / 2, z); w.rotation.y = ry; g.add(w); }
-        for (const [x, ry, sign] of [[R, -Math.PI / 2, 1], [-R, Math.PI / 2, -1]] as const) for (const [z, y, w, h] of sideParts) { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), wallMat); m.position.set(x, y, z * sign); m.rotation.y = ry; g.add(m); }
-        [-7.5, -4.5, -1.5, 1.5, 4.5, 7.5].forEach((x, i) => {
-          addFace(new THREE.Vector3(x, 0, -R + 0.35), 0, 5, 3, true, 'n' + i, 0, false);
-          addFace(new THREE.Vector3(-x, 0, R - 0.35), Math.PI, 5, 3, true, 's' + i, 0, false);
-          if (Math.abs(x) > 2) addFace(new THREE.Vector3(R - 0.35, 0, x), -Math.PI / 2, 5, 3, true, 'e' + i, 0, false);
-          if (Math.abs(x) > 2) addFace(new THREE.Vector3(-R + 0.35, 0, -x), Math.PI / 2, 5, 3, true, 'w' + i, 0, false);
+        // the Reading Room: a tall hall with two galleries round it, bookcases down the middle, the stair tower
+        // through an arch to the north, and the Curio Shop and the Duelling Ring on the south wall
+        const ceil = new THREE.Mesh(holedRect(-R, R, -R, R, []), ceilMat); ceil.rotation.x = -Math.PI / 2; ceil.position.y = H0; g.add(ceil);
+        const wallZ = (x0: number, x1: number, y0: number, y1: number, z: number, ry: number) => { const w = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, y1 - y0), wallMat); w.position.set((x0 + x1) / 2, (y0 + y1) / 2, z); w.rotation.y = ry; g.add(w); };
+        const wallX = (z0: number, z1: number, y0: number, y1: number, x: number, ry: number) => { const w = new THREE.Mesh(new THREE.PlaneGeometry(z1 - z0, y1 - y0), wallMat); w.position.set(x, (y0 + y1) / 2, (z0 + z1) / 2); w.rotation.y = ry; g.add(w); };
+        wallZ(-R, -ARCH_W, 0, H0, -R, 0); wallZ(ARCH_W, R, 0, H0, -R, 0); wallZ(-ARCH_W, ARCH_W, ARCH_H, H0, -R, 0);
+        const dl = doorW / 2;
+        wallZ(-R, RING_X - dl, 0, H0, R, Math.PI); wallZ(RING_X + dl, SHOP_X - dl, 0, H0, R, Math.PI); wallZ(SHOP_X + dl, R, 0, H0, R, Math.PI);
+        for (const x of [RING_X, SHOP_X]) wallZ(x - dl, x + dl, doorH, H0, R, Math.PI);
+        wallX(-R, R, 0, H0, R, -Math.PI / 2); wallX(-R, R, 0, H0, -R, Math.PI / 2);
+        // the stair tower: its own floor with the great stair's hole, walls lined low with books, and a high ceiling
+        const T = TOWER;
+        const tf = new THREE.Mesh(holedRect(T.x0, T.x1, T.z0, T.z1, [{ x: WELL.x, z: WELL.z, r: WELL_R }]), floorMat); tf.rotation.x = -Math.PI / 2; g.add(tf);
+        const tc = new THREE.Mesh(holedRect(T.x0, T.x1, T.z0, T.z1, []), ceilMat); tc.rotation.x = -Math.PI / 2; tc.position.y = H0; g.add(tc);
+        wallZ(T.x0, T.x1, 0, H0, T.z0, 0); wallX(T.z0, T.z1, 0, H0, T.x0, Math.PI / 2); wallX(T.z0, T.z1, 0, H0, T.x1, -Math.PI / 2);
+        wallZ(T.x0, -ARCH_W, 0, H0, T.z1, Math.PI); wallZ(ARCH_W, T.x1, 0, H0, T.z1, Math.PI); wallZ(-ARCH_W, ARCH_W, ARCH_H, H0, T.z1, Math.PI);
+        [-4.5, -1.5, 1.5, 4.5].forEach((x, i) => addFace(new THREE.Vector3(x, 0, T.z0 + 0.35), 0, 5, 3, true, 'tn' + i, 0, false));
+        for (const [z, i] of [[-20.5, 0], [-11.5, 1]] as const) {
+          addFace(new THREE.Vector3(T.x0 + 0.35, 0, z), Math.PI / 2, 5, 3, true, 'tw' + i, 0, false);
+          addFace(new THREE.Vector3(T.x1 - 0.35, 0, z), -Math.PI / 2, 5, 3, true, 'te' + i, 0, false);
+        }
+        // the arch itself: two stone piers and a lintel
+        for (const sx of [-1, 1]) { const pier = new THREE.Mesh(new THREE.BoxGeometry(0.7, ARCH_H, 0.9), stone); pier.position.set(sx * (ARCH_W + 0.2), ARCH_H / 2, -R); g.add(pier); }
+        const lintel = new THREE.Mesh(new THREE.BoxGeometry(2 * ARCH_W + 1.2, 0.6, 1.0), stone); lintel.position.set(0, ARCH_H + 0.3, -R); g.add(lintel);
+        // books along the walls below the galleries (not over the doors, nor across the arch)
+        [-7.5, -4.5, 4.5, 7.5].forEach((x, i) => addFace(new THREE.Vector3(x, 0, -R + 0.35), 0, 5, 3, true, 'n' + i, 0, false));
+        for (const [x, w, i] of [[-8.85, 1.6, 0], [-3.4, 1.6, 1], [-1.3, 2.4, 2], [1.3, 2.4, 3], [3.4, 1.6, 4], [8.85, 1.6, 5]] as const) addFace(new THREE.Vector3(x, 0, R - 0.35), Math.PI, 5, w, true, 's' + i, 0, false);
+        [-7.5, -4.5, -1.5, 1.5, 4.5, 7.5].forEach((z, i) => {
+          addFace(new THREE.Vector3(R - 0.35, 0, z), -Math.PI / 2, 5, 3, true, 'e' + i, 0, false);
+          addFace(new THREE.Vector3(-R + 0.35, 0, z), Math.PI / 2, 5, 3, true, 'w' + i, 0, false);
         });
         // the galleries: a walkway round all four walls on each, cased with books floor to ceiling
         for (const [ty, rows] of [[T1, Math.floor((T2 - 0.25 - T1 - 0.45) / 0.8)], [T2, Math.floor((H0 - T2 - 0.45) / 0.8)]] as const) {
@@ -492,38 +588,55 @@ export class Library implements View {
             addFace(new THREE.Vector3(R - 0.35, ty, z), -Math.PI / 2, rows, 3, true, `ge${ty}:${i}`, 0, false);
             addFace(new THREE.Vector3(-R + 0.35, ty, -z), Math.PI / 2, rows, 3, true, `gw${ty}:${i}`, 0, false);
           });
-          for (const [x, z] of [[-G - 0.15, -G - 0.15], [G + 0.15, -G - 0.15], [-G - 0.15, G + 0.15], [G + 0.15, G + 0.15], [-4, -G - 0.15], [4, -G - 0.15], [-4, G + 0.15], [4, G + 0.15]]) if (ty === T1) post(x, z, T2);
+          for (const [x, z] of [[-G - 0.15, -G - 0.15], [G + 0.15, -G - 0.15], [-G - 0.15, G + 0.15], [G + 0.15, G + 0.15], [-3.2, -G - 0.15], [3.2, -G - 0.15], [-3, G + 0.15], [3, G + 0.15]]) if (ty === T1) post(x, z, T2);
         }
-        // two stairs up the side walls, south of the doorways so both doors stay clear, and one flight from
-        // the east gallery on up to the second
+        // a stair up each side wall, climbing south from the tower end, and a flight from the east gallery
+        // along the south side up to the second
         for (const sx of [1, -1]) {
           const xi = sx * 6.2, xo = sx * 7.6, [xa, xb] = sx > 0 ? [6.2, 7.6] : [-7.6, -6.2];
-          addRamp(xa, xb, 0.3, 7.9, 1, 7.9, 0.3, 0, T1); // walk on at the south end
-          addDeck(xa, xb, -1.1, 0.3, T1); // a landing at the top
-          addRail(xi, 7.9, xi, 0.3, 0, T1, 0.35);
-          addRail(xo, 7.9, xo, 1.0, 0, T1 * (7.9 - 1.0) / 7.6, 0.35);
-          addRail(xi, -1.1, xi, 0.3, T1, T1); addRail(xi, -1.1, xo, -1.1, T1, T1);
-          // the side gallery's inner edge, open where the landing meets it
-          addRail(xo, 1.0, xo, 7.6, T1, T1);
-          addRail(xo, sx > 0 ? -6.2 : -7.6, xo, -1.1, T1, T1);
+          addRamp(xa, xb, -6.9, 0.7, 1, -6.9, 0.7, 0, T1);
+          addDeck(xa, xb, 0.7, 2.1, T1); // the landing at the top
+          addRail(xi, -6.9, xi, 0.7, 0, T1, 0.35);
+          addRail(xo, -6.9, xo, 0.5, 0, T1 * 7.4 / 7.6, 0.35);
+          addRail(xi, 0.7, xi, 2.1, T1, T1); addRail(xi, 2.1, xo, 2.1, T1, T1);
+          addRail(xo, -7.6, xo, -6.9, T1, T1);
+          addRail(xo, 2.3, xo, sx > 0 ? 6.2 : 7.6, T1, T1);
         }
-        addRamp(-2.4, 7.6, -7.6, -6.2, 0, 7.6, -2.4, T1, T2);
-        addDeck(-3.8, -2.4, -7.6, -6.2, T2);
-        addRail(7.6, -6.2, -2.4, -6.2, T1, T2, T1 + 0.35); addRail(7.6, -7.6, -2.4, -7.6, T1, T2, T1 + 0.8);
-        addRail(-3.8, -6.2, -2.4, -6.2, T2, T2); addRail(-3.8, -7.6, -3.8, -6.2, T2, T2);
+        addRamp(-2.4, 7.6, 6.2, 7.6, 0, 7.6, -2.4, T1, T2);
+        addDeck(-3.8, -2.4, 6.2, 7.6, T2);
+        addRail(7.6, 6.2, -2.4, 6.2, T1, T2, T1 + 0.35); addRail(7.6, 7.6, -2.4, 7.6, T1, T2, T1 + 0.8);
+        addRail(-3.8, 6.2, -2.4, 6.2, T2, T2); addRail(-3.8, 6.2, -3.8, 7.6, T2, T2);
         addRail(-7.6, -7.6, 7.6, -7.6, T1, T1); addRail(-7.6, 7.6, 7.6, 7.6, T1, T1);
-        addRail(-7.6, -7.6, -3.8, -7.6, T2, T2); addRail(-2.2, -7.6, 7.6, -7.6, T2, T2); addRail(-7.6, 7.6, 7.6, 7.6, T2, T2);
+        addRail(-7.6, -7.6, 7.6, -7.6, T2, T2); addRail(-7.6, 7.6, -3.8, 7.6, T2, T2); addRail(-2.2, 7.6, 7.6, 7.6, T2, T2);
         addRail(7.6, -7.6, 7.6, 7.6, T2, T2); addRail(-7.6, -7.6, -7.6, 7.6, T2, T2);
         // candles along both galleries, against the shelves
-        for (const ty of [T1, T2]) for (const [x, z] of [[0, -9.1], [0, 9.1], [9.1, 3], [-9.1, 3], [-4.5, 9.1], [4.5, -9.1]]) {
+        for (const ty of [T1, T2]) for (const [x, z] of [[0, -9.1], [0, 9.1], [9.1, -3], [-9.1, -3], [9.1, 4], [-9.1, 4], [-4.5, 9.1], [4.5, -9.1]]) {
           stands.push(new THREE.Vector3(x, ty, z));
           colliders.push({ x0: x - 0.12, x1: x + 0.12, z0: z - 0.12, z1: z + 0.12, lo: ty - 0.4, hi: ty + 1.4 });
         }
-        // reading nooks in the gallery corners
-        addNook(9.0, 8.8, T1, Math.PI + 0.7); addNook(-9.0, 8.8, T1, Math.PI - 0.7);
-        addNook(9.0, -8.8, T2, 0.7); addNook(-9.0, 8.8, T2, Math.PI - 0.7); addNook(9.0, 8.8, T2, Math.PI + 0.7);
-        // chandeliers hanging in the open middle
-        for (const [x, y, z] of [[0, 16.5, 3.5], [-3, 15, -3], [3, 15.5, -3]]) { const c = glowSprite(L.flame, 2.2, 0.8); c.position.set(x, y, z); g.add(c); const chain = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, H0 - y, 4), iron); chain.position.set(x, (H0 + y) / 2, z); g.add(chain); }
+        // reading nooks in the gallery corners, and candles in the tower
+        addNook(9.0, -8.8, T1, 0.7); addNook(-9.0, -8.8, T1, -0.7);
+        addNook(9.0, 8.8, T2, Math.PI + 0.7); addNook(-9.0, -8.8, T2, -0.7); addNook(9.0, -8.8, T2, 0.7);
+        for (const [x, z] of [[-5.1, -21.1], [5.1, -21.1], [-5.1, -10.9], [5.1, -10.9]]) { stands.push(new THREE.Vector3(x, 0, z)); colliders.push({ x0: x - 0.2, x1: x + 0.2, z0: z - 0.2, z1: z + 0.2 }); }
+        // chandeliers in the open middle, and banners hanging from the first gallery's rails
+        for (const [x, y, z, sz] of [[0, 15.5, -1.5, 2.6], [-3.5, 13, 3, 1.6], [3.5, 13.5, -4.5, 1.6], [0, 14, -16, 2.2]] as const) {
+          const c = glowSprite(L.flame, sz, 0.85); c.position.set(x, y, z); g.add(c);
+          const ring = new THREE.Mesh(new THREE.TorusGeometry(sz * 0.32, 0.04, 6, 24), brass); ring.rotation.x = Math.PI / 2; ring.position.set(x, y - 0.1, z); g.add(ring);
+          const chain = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, H0 - y, 4), iron); chain.position.set(x, (H0 + y) / 2, z); g.add(chain);
+        }
+        const bannerMat = (c1: string, c2: string) => {
+          const [cv, cx] = canvas(128, 320);
+          cx.fillStyle = c1; cx.fillRect(0, 0, 128, 320);
+          cx.fillStyle = c2; cx.fillRect(10, 0, 8, 290); cx.fillRect(110, 0, 8, 290);
+          cx.beginPath(); cx.moveTo(0, 290); cx.lineTo(64, 320); cx.lineTo(128, 290); cx.lineTo(128, 320); cx.lineTo(0, 320); cx.fillStyle = '#000'; cx.globalCompositeOperation = 'destination-out'; cx.fill(); cx.globalCompositeOperation = 'source-over';
+          cx.strokeStyle = c2; cx.lineWidth = 6; cx.beginPath(); cx.arc(64, 120, 34, 0, Math.PI * 2); cx.stroke();
+          cx.beginPath(); cx.moveTo(64, 80); cx.lineTo(64, 160); cx.moveTo(34, 120); cx.lineTo(94, 120); cx.stroke();
+          const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
+          return new THREE.MeshStandardMaterial({ map: t, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 1 });
+        };
+        for (const [x, z, ry, c1, c2] of [[-4.5, -7.66, 0, '#5a1a24', '#c9a13b'], [4.5, -7.66, 0, '#1a2a5a', '#c9a13b'], [-1.5, -7.66, 0, '#1a4a3a', '#d8c890'], [1.5, -7.66, 0, '#4a1a5a', '#d8c890'], [7.66, 4.6, -Math.PI / 2, '#5a1a24', '#c9a13b'], [-7.66, 4.6, Math.PI / 2, '#1a2a5a', '#c9a13b']] as const) {
+          const b = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 2.8), bannerMat(c1, c2)); b.position.set(x, T1 - 1.45, z); b.rotation.y = ry; g.add(b);
+        }
       } else {
         // a generated floor: ceilings cell by cell (each wing has its own height), walls where the plan ends,
         // and short walls where a low ceiling meets a higher one
@@ -536,12 +649,15 @@ export class Library implements View {
         for (let iz = 0; iz < N; iz++) for (let ix = 0; ix < N; ix++) {
           const k = iz * N + ix; if (!plan.walk[k]) continue;
           const x = cellX(ix), z = cellX(iz);
-          if (Math.hypot(x - WELL.x, z - WELL.z) < WELL_R + 1.1) { m4.makeScale(0.0001, 0.0001, 0.0001); ceilMesh.setMatrixAt(n++, m4); continue; }
+          if (passing.some(sp => Math.abs(x - sp.x) < sp.sq && Math.abs(z - sp.z) < sp.sq)) { m4.makeScale(0.0001, 0.0001, 0.0001); ceilMesh.setMatrixAt(n++, m4); continue; }
           m4.makeTranslation(x, plan.ceil[k], z); ceilMesh.setMatrixAt(n++, m4);
         }
         g.add(ceilMesh);
-        // the hall's ceiling has a round hole for the stair
-        const ring = new THREE.Mesh(new THREE.RingGeometry(WELL_R, WELL_R + 2.9, 48).rotateX(Math.PI / 2), ceilMat); ring.position.set(WELL.x, H - 0.012, WELL.z); g.add(ring);
+        // where a stair comes down through the ceiling, a square of ceiling with a round hole in it
+        for (const sp of passing) {
+          const patch = new THREE.Mesh(holedRect(sp.x - sp.sq, sp.x + sp.sq, sp.z - sp.sq, sp.z + sp.sq, [{ x: sp.x, z: sp.z, r: sp.rHole }]), ceilMat);
+          patch.rotation.x = -Math.PI / 2; patch.position.y = LH - sp.slab[d - 1 - sp.top] - 0.01; g.add(patch);
+        }
         const walls = new THREE.InstancedMesh(new THREE.PlaneGeometry(C, 1).translate(0, 0.5, 0), segMat, plan.edges.length);
         const q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
         plan.edges.forEach((e, i) => {
@@ -563,11 +679,12 @@ export class Library implements View {
         const sof = new THREE.InstancedMesh(new THREE.PlaneGeometry(C, 1).translate(0, 0.5, 0), segMat, Math.max(1, soffits.length));
         soffits.forEach((s, i) => { q.setFromAxisAngle(up, s.ry); m4.compose(new THREE.Vector3(s.x, s.lo, s.z), q, new THREE.Vector3(1, s.hi - s.lo, 1)); sof.setMatrixAt(i, m4); });
         sof.count = soffits.length; g.add(sof);
+        const hasSpiral = (rm: Room) => this.spirals.some(sp => !sp.main && sp.top <= d && d <= sp.bot && sp.x > (rm.ix0 - N / 2) * C - 5 && sp.x < (rm.ix1 - N / 2) * C + 5 && sp.z > (rm.iz0 - N / 2) * C - 5 && sp.z < (rm.iz1 - N / 2) * C + 5);
         // the tall rooms that get a balcony along one long wall, reached by a stair
         const mrng = mulberry32(313 + d * 53);
         const mezz = new Map<number, { alongX: boolean; wall: number; into: number }>();
         for (const rm of plan.rooms) {
-          if (!(rm.kind === 'gallery' || rm.kind === 'room') || plan.shops.includes(rm.id) || rm.ceil < 6.2) continue;
+          if (!(rm.kind === 'gallery' || rm.kind === 'room') || plan.shops.includes(rm.id) || rm.ceil < 6.2 || hasSpiral(rm)) continue;
           const w = (rm.ix1 - rm.ix0) * C, dd = (rm.iz1 - rm.iz0) * C;
           if (Math.max(w, dd) < 12 || Math.min(w, dd) < 6) continue;
           if (mrng() > (rm.kind === 'gallery' ? 0.8 : 0.55)) continue;
@@ -665,7 +782,7 @@ export class Library implements View {
               addFace(new THREE.Vector3(cx, 0, cz).sub(off), ry + Math.PI, rows, 1.6, false, `f${rm.id}:${a.toFixed(1)}:${b.toFixed(1)}`, rm.id, false);
               colliders.push(alongX ? { x0: cx - 0.9, x1: cx + 0.9, z0: cz - 0.55, z1: cz + 0.55 } : { x0: cx - 0.55, x1: cx + 0.55, z0: cz - 0.9, z1: cz + 0.9 });
             }
-          } else if (w >= 7 && dd >= 7 && frng() < 0.5) {
+          } else if (w >= 7 && dd >= 7 && !hasSpiral(rm) && frng() < 0.5) {
             // a raised reading platform in the middle of the room, with an armchair and a heap of books
             const hx = Math.min(2.6, w / 2 - 1.7), hz = Math.min(2.6, dd / 2 - 1.7);
             addDeck(mx - hx, mx + hx, mz - hz, mz + hz, 0.42, true);
@@ -681,11 +798,11 @@ export class Library implements View {
           }
         });
       }
-      // the hall is the same on every floor: two rows of free-standing cases and six candle stands
-      if (d > 0) HALL_ROWS.forEach(([x, z], i) => {
-        addFace(new THREE.Vector3(x + 0.33, 0, z), Math.PI / 2, 4, 3, false, 'h' + i, 0, false);
-        addFace(new THREE.Vector3(x - 0.33, 0, z), -Math.PI / 2, 4, 3, false, 'h' + i, 0, false);
-        colliders.push({ x0: x - 0.5, x1: x + 0.5, z0: z - 1.5, z1: z + 1.5 });
+      // the hall is the same on every floor: two rows of free-standing cases down the middle and six candle stands
+      HALL_ROWS.forEach(([x, z], i) => {
+        addFace(new THREE.Vector3(x, 0, z + 0.33), 0, 4, 2.6, false, 'h' + i, 0, false);
+        addFace(new THREE.Vector3(x, 0, z - 0.33), Math.PI, 4, 2.6, false, 'h' + i, 0, false);
+        colliders.push({ x0: x - 1.3, x1: x + 1.3, z0: z - 0.5, z1: z + 0.5, hi: 3.5 });
       });
       // the bookcase that winds down the stair: the stretch of it that passes through this floor's room
       // (and pokes up round the hole above), a flat case per step of the turn
@@ -700,8 +817,12 @@ export class Library implements View {
           addFace(c, Math.atan2(-Math.cos(a), -Math.sin(a)), 3, chord, true, 'sp' + k, 0, false);
         }
       }
-      HALL_CANDLES.forEach(([x, z]) => { stands.push(new THREE.Vector3(x, 0, z)); colliders.push({ x0: x - 0.25, x1: x + 0.25, z0: z - 0.25, z1: z + 0.25 }); });
+      HALL_CANDLES.forEach(([x, z]) => { stands.push(new THREE.Vector3(x, 0, z)); colliders.push({ x0: x - 0.25, x1: x + 0.25, z0: z - 0.25, z1: z + 0.25, hi: 1.6 }); });
 
+      // clear the floor round the smaller stairs
+      for (let i = faces.length - 1; i >= 0; i--) if (!faces[i].unit.startsWith('sp') && nearSpiral(faces[i].c.x, faces[i].c.z, 0.9)) faces.splice(i, 1);
+      for (let i = colliders.length - 1; i >= 0; i--) { const b = colliders[i]; if (nearSpiral((b.x0 + b.x1) / 2, (b.z0 + b.z1) / 2, 0.9)) colliders.splice(i, 1); }
+      for (let i = stands.length - 1; i >= 0; i--) if (nearSpiral(stands[i].x, stands[i].z, 0.9)) stands.splice(i, 1);
       // group the cases into square blocks; each block draws its own books and woodwork
       const secKey = (c: THREE.Vector3) => `${Math.floor(c.x / SECTOR)},${Math.floor(c.z / SECTOR)}`;
       const secOf: Record<string, number> = {};
@@ -778,16 +899,20 @@ export class Library implements View {
       STALLS.filter(sd => sd.d === d).forEach((sd, si) => {
         if (plan.shops[si] === undefined) return;
         const rm = plan.rooms[plan.shops[si]], N = plan.N;
-        const mx = ((rm.ix0 + rm.ix1) / 2 - N / 2) * C, mz = ((rm.iz0 + rm.iz1) / 2 - N / 2) * C;
+        let mx = ((rm.ix0 + rm.ix1) / 2 - N / 2) * C, mz = ((rm.iz0 + rm.iz1) / 2 - N / 2) * C;
         // the stall faces the way in, which is roughly back towards the stair
-        const tx = WELL.x - mx, tz = WELL.z - mz;
-        const ry = Math.abs(tx) > Math.abs(tz) ? (tx > 0 ? Math.PI / 2 : -Math.PI / 2) : (tz > 0 ? 0 : Math.PI);
-        const st = new Stall(sd, L.flame);
+        // (along the room's long side, so there is space in front of the table)
+        const tx = WELL.x - mx, tz = WELL.z - mz, longX = rm.ix1 - rm.ix0 > rm.iz1 - rm.iz0;
+        const ry = longX ? (tx > 0 ? Math.PI / 2 : -Math.PI / 2) : (tz > 0 ? 0 : Math.PI);
+        // and the table stands back from the middle, towards the far wall
+        const back = ((longX ? rm.ix1 - rm.ix0 : rm.iz1 - rm.iz0) * C) / 2 - 2.2;
+        mx -= Math.sin(ry) * Math.max(0, back); mz -= Math.cos(ry) * Math.max(0, back);
+        const st = new Stall(sd);
         st.group.position.set(mx, 0, mz); st.group.rotation.y = ry; g.add(st.group);
         this.stalls[sd.key] = st;
         const fw = new THREE.Vector3(Math.sin(ry), 0, Math.cos(ry)), side = new THREE.Vector3(Math.cos(ry), 0, -Math.sin(ry));
         // the table and the keeper behind it
-        const pts = [fw.clone().multiplyScalar(0.3).addScaledVector(side, 1.3), fw.clone().multiplyScalar(0.3).addScaledVector(side, -1.3), fw.clone().multiplyScalar(-1.3).addScaledVector(side, 1.3), fw.clone().multiplyScalar(-1.3).addScaledVector(side, -1.3)];
+        const pts = [fw.clone().multiplyScalar(0.4).addScaledVector(side, 2.0), fw.clone().multiplyScalar(0.4).addScaledVector(side, -2.0), fw.clone().multiplyScalar(-1.6).addScaledVector(side, 2.0), fw.clone().multiplyScalar(-1.6).addScaledVector(side, -2.0)];
         colliders.push({ x0: mx + Math.min(...pts.map(p => p.x)), x1: mx + Math.max(...pts.map(p => p.x)), z0: mz + Math.min(...pts.map(p => p.z)), z1: mz + Math.max(...pts.map(p => p.z)) });
         shopStands.add(stands.length);
         stands.push(new THREE.Vector3(mx, 0, mz).addScaledVector(fw, 0.9));
@@ -820,69 +945,108 @@ export class Library implements View {
         im.computeBoundingSphere(); g.add(im);
       }
       // beams across the hall
-      for (let i = -3; i <= 3; i++) { if (d > 0 && Math.abs(i * 3 - WELL.z) < WELL_R + 2.5) continue; const beam = new THREE.Mesh(new THREE.BoxGeometry(2 * R, 0.4, 0.35), woodMat); beam.position.set(0, (d === 0 ? H0 : H) - 0.2, i * 3); g.add(beam); }
-      // the stairwell as it passes this floor: a stone rim, a brass rail open on the landing side, the shaft through the slab
-      if (d < DEEPEST) {
-        const wg = new THREE.Group(); wg.position.set(WELL.x, 0, WELL.z); g.add(wg);
-        const rim = new THREE.Mesh(new THREE.TorusGeometry(WELL_R + 0.02, 0.1, 8, 56), stone); rim.rotation.x = Math.PI / 2; rim.position.y = 0.03; wg.add(rim);
-        const gap = LAND_GAP;
-        for (let k = 0; k < 36; k++) {
-          const a = (k / 36) * Math.PI * 2;
-          if (Math.abs(Math.atan2(Math.sin(a - A0), Math.cos(a - A0))) < gap) continue;
-          const post = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 0.8, 6), brass); post.position.set(Math.cos(a) * (WELL_R + 0.05), 0.4, Math.sin(a) * (WELL_R + 0.05)); wg.add(post);
+      for (let i = -3; i <= 3; i++) { const beam = new THREE.Mesh(new THREE.BoxGeometry(2 * R, 0.4, 0.35), woodMat); beam.position.set(0, (d === 0 ? H0 : H) - 0.2, i * 3); g.add(beam); }
+      // each stair as it passes this floor: a stone rim and a brass rail round the hole (open at the landing),
+      // and the shaft down through the slab; the smaller stairs get a rail round their foot as well
+      for (const sp of this.spirals) {
+        const hole = sp.top <= d && d < sp.bot, foot = !sp.main && d === sp.bot;
+        if (!hole && !foot) continue;
+        const wg = new THREE.Group(); wg.position.set(sp.x, 0, sp.z); g.add(wg);
+        const rim = new THREE.Mesh(new THREE.TorusGeometry(sp.rHole + 0.02, sp.main ? 0.1 : 0.07, 8, 56), stone); rim.rotation.x = Math.PI / 2; rim.position.y = 0.03; wg.add(rim);
+        const gap = sp.gap, nPost = sp.main ? 36 : 16;
+        for (let k = 0; k < nPost; k++) {
+          const a = (k / nPost) * Math.PI * 2;
+          if (Math.abs(Math.atan2(Math.sin(a - sp.a0), Math.cos(a - sp.a0))) < gap) continue;
+          const p = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 0.8, 6), brass); p.position.set(Math.cos(a) * (sp.rHole + 0.05), 0.4, Math.sin(a) * (sp.rHole + 0.05)); wg.add(p);
         }
-        const railG = new THREE.Group(); railG.rotation.y = gap - A0; railG.position.y = 0.8; wg.add(railG);
-        const rail = new THREE.Mesh(new THREE.TorusGeometry(WELL_R + 0.05, 0.03, 6, 56, Math.PI * 2 - gap * 2), brass); rail.rotation.x = -Math.PI / 2; railG.add(rail);
-        const slab = new THREE.Mesh(new THREE.CylinderGeometry(WELL_R, WELL_R, LH - H, 40, 1, true), new THREE.MeshStandardMaterial({ map: shaftTex, color: L.wall, roughness: 1, side: THREE.BackSide }));
-        slab.position.y = -(LH - H) / 2; wg.add(slab);
-        const glow = glowSprite(LEVELS[d + 1].flame, 4, 0.25); glow.position.y = -LH * 0.6; wg.add(glow);
+        const railG = new THREE.Group(); railG.rotation.y = gap - sp.a0; railG.position.y = 0.8; wg.add(railG);
+        const rail = new THREE.Mesh(new THREE.TorusGeometry(sp.rHole + 0.05, 0.03, 6, 56, Math.PI * 2 - gap * 2), brass); rail.rotation.x = -Math.PI / 2; railG.add(rail);
+        if (hole) {
+          const h = sp.slab[d - sp.top];
+          const slab = new THREE.Mesh(new THREE.CylinderGeometry(sp.rHole, sp.rHole, h, 40, 1, true), new THREE.MeshStandardMaterial({ map: shaftTex, color: L.wall, roughness: 1, side: THREE.BackSide }));
+          slab.position.y = -h / 2; wg.add(slab);
+          if (sp.main) { const glow = glowSprite(LEVELS[d + 1].flame, 4, 0.25); glow.position.y = -LH * 0.6; wg.add(glow); }
+        }
       }
       this.floors.push({ d, y0: -d * LH, plan, group: g, faces: fullFaces, slots, colliders, stands, decks, ramps, books: [], secs, bandMesh, glows: [], flames, taken: {}, laid: '' });
     }
 
-    // ---- the stair: one long helix of steps from the Reading Room to the bottom
-    {
-      const perTurn = 40;
-      const total = Math.round((DEEPEST * LH / PITCH) * perTurn);
-      const tread = 2 * STAIR_OUT * Math.sin(Math.PI / perTurn) + 0.06;
-      const steps = new THREE.InstancedMesh(new THREE.BoxGeometry(STAIR_OUT - STAIR_IN, 0.3, tread).translate(0, -0.08, 0), new THREE.MeshStandardMaterial({ map: fs.map, normalMap: fs.normal, color: '#8a8290', roughness: 0.9 }), total + 1);
-      const lip = new THREE.InstancedMesh(new THREE.BoxGeometry(0.08, 0.36, tread * 0.62), brass, total + 1);
-      const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), rmid = (STAIR_IN + STAIR_OUT) / 2;
+    // ---- the stairs: helixes of steps, the great one from the Reading Room's tower to the bottom
+    for (const sp of this.spirals) {
+      const perTurn = sp.main ? 40 : 24;
+      const total = Math.round(((sp.bot - sp.top) * LH / sp.pitch) * perTurn);
+      const tread = 2 * sp.rOut * Math.sin(Math.PI / perTurn) + 0.06;
+      const stepMat = sp.main ? new THREE.MeshStandardMaterial({ map: fs.map, normalMap: fs.normal, color: '#8a8290', roughness: 0.9 }) : new THREE.MeshStandardMaterial({ color: '#6a6070', roughness: 0.9, flatShading: true });
+      const steps = new THREE.InstancedMesh(new THREE.BoxGeometry(sp.rOut - sp.rIn, sp.main ? 0.3 : 0.2, tread).translate(0, sp.main ? -0.08 : -0.05, 0), stepMat, total + 1);
+      const lip = sp.main ? new THREE.InstancedMesh(new THREE.BoxGeometry(0.08, 0.36, tread * 0.62), brass, total + 1) : null;
+      const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), rmid = (sp.rIn + sp.rOut) / 2, y0 = -sp.top * LH;
       for (let k = 0; k <= total; k++) {
-        const phi = (k / perTurn) * Math.PI * 2, a = A0 + phi, y = -(phi / (Math.PI * 2)) * PITCH;
+        const phi = (k / perTurn) * Math.PI * 2, a = sp.a0 + phi, y = y0 - (phi / (Math.PI * 2)) * sp.pitch;
         q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -a);
-        m4.compose(new THREE.Vector3(WELL.x + Math.cos(a) * rmid, y - 0.07, WELL.z + Math.sin(a) * rmid), q, new THREE.Vector3(1, 1, 1)); steps.setMatrixAt(k, m4);
-        m4.compose(new THREE.Vector3(WELL.x + Math.cos(a) * STAIR_IN, y + 0.1, WELL.z + Math.sin(a) * STAIR_IN), q, new THREE.Vector3(1, 1, 1)); lip.setMatrixAt(k, m4);
+        m4.compose(new THREE.Vector3(sp.x + Math.cos(a) * rmid, y - 0.07, sp.z + Math.sin(a) * rmid), q, new THREE.Vector3(1, 1, 1)); steps.setMatrixAt(k, m4);
+        if (lip) { m4.compose(new THREE.Vector3(sp.x + Math.cos(a) * sp.rIn, y + 0.1, sp.z + Math.sin(a) * sp.rIn), q, new THREE.Vector3(1, 1, 1)); lip.setMatrixAt(k, m4); }
       }
-      S.add(steps, lip);
+      steps.computeBoundingSphere(); S.add(steps);
+      if (lip) { lip.computeBoundingSphere(); S.add(lip); }
+      // the smaller stairs wind round a stone column
+      if (!sp.main) {
+        const col = new THREE.Mesh(new THREE.CylinderGeometry(sp.rIn - 0.02, sp.rIn + 0.04, LH * (sp.bot - sp.top) + 1, 12), stone);
+        col.position.set(sp.x, y0 - LH * (sp.bot - sp.top) / 2 + 0.5, sp.z); S.add(col);
+      }
     }
 
     // ---- the Reading Room's own things: doorways, rugs, the desk
     const L0 = this.floors[0].group;
     const wood0 = new THREE.MeshStandardMaterial({ map: woodMap, roughness: 0.8 });
-    const rug = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 6.2), new THREE.MeshStandardMaterial({ map: rugTex(), roughness: 1 }));
-    rug.rotation.x = -Math.PI / 2; rug.position.set(0, 0.012, 4.9); L0.add(rug);
-    for (const x of [7.1, -7.1]) { const r2 = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 5.4), new THREE.MeshStandardMaterial({ map: rugTex(), roughness: 1 })); r2.rotation.set(-Math.PI / 2, 0, Math.PI / 2); r2.position.set(x, 0.013, 0); L0.add(r2); }
-    for (const z of [-doorW / 2 - 0.15, doorW / 2 + 0.15]) { const post = new THREE.Mesh(new THREE.BoxGeometry(0.4, doorH, 0.3), wood0); post.position.set(R - 0.1, doorH / 2, z); L0.add(post); }
-    const lintel = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.4, doorW + 0.7), wood0); lintel.position.set(R - 0.1, doorH + 0.2, 0); L0.add(lintel);
+    const rugMat = new THREE.MeshStandardMaterial({ map: rugTex(), roughness: 1 });
+    const rug = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 5.4), rugMat); rug.rotation.x = -Math.PI / 2; rug.position.set(0, 0.012, 4.9); L0.add(rug);
+    const aisle = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 8.6), rugMat); aisle.rotation.x = -Math.PI / 2; aisle.position.set(0, 0.011, -3.4); L0.add(aisle);
+    for (const x of [SHOP_X, RING_X]) { const r2 = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 3.6), rugMat); r2.rotation.x = -Math.PI / 2; r2.position.set(x, 0.013, R - 2); L0.add(r2); }
+    // the shop's door: a wooden frame and a painted sign
+    for (const x of [SHOP_X - doorW / 2 - 0.15, SHOP_X + doorW / 2 + 0.15]) { const post = new THREE.Mesh(new THREE.BoxGeometry(0.3, doorH, 0.4), wood0); post.position.set(x, doorH / 2, R - 0.1); L0.add(post); }
+    const lintel = new THREE.Mesh(new THREE.BoxGeometry(doorW + 0.7, 0.4, 0.45), wood0); lintel.position.set(SHOP_X, doorH + 0.2, R - 0.1); L0.add(lintel);
     const signTex = signTexture(['Curios & Oddments'], { bg: '#2a1a12', border: '#c9a13b', ink: '#f1d98a' });
     const sign = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.8), new THREE.MeshStandardMaterial({ map: signTex, emissive: new THREE.Color('#ffd080'), emissiveIntensity: 0.25, emissiveMap: signTex }));
-    sign.position.set(R - 0.45, doorH + 0.9, 0); sign.rotation.y = -Math.PI / 2; L0.add(sign);
-    for (const z of [-doorW / 2 - 0.25, doorW / 2 + 0.25]) {
-      const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.6, doorH, 0.5), stone); pillar.position.set(-R + 0.1, doorH / 2, z); L0.add(pillar);
-      const cap = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.25, 0.65), stone); cap.position.set(-R + 0.1, 0.12, z); L0.add(cap);
+    sign.position.set(SHOP_X, doorH + 0.9, R - 0.45); sign.rotation.y = Math.PI; L0.add(sign);
+    // potted ferns and wall lanterns either side of both doorways, and a globe and a candelabrum by the desk
+    const pot = new THREE.MeshStandardMaterial({ color: '#8a4a2a', roughness: 0.9 });
+    const fern = new THREE.MeshStandardMaterial({ color: '#3a6a2a', roughness: 0.9, side: THREE.DoubleSide });
+    for (const x of [SHOP_X - 2.3, SHOP_X + 2.3, RING_X - 2.3, RING_X + 2.3]) {
+      const p = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.24, 0.6, 12), pot); p.position.set(x, 0.3, R - 0.8); L0.add(p);
+      for (let k = 0; k < 7; k++) {
+        const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.9, 5), fern);
+        const a = (k / 7) * Math.PI * 2; leaf.position.set(x + Math.cos(a) * 0.15, 0.95, R - 0.8 + Math.sin(a) * 0.15); leaf.rotation.set(Math.sin(a) * 0.6, 0, -Math.cos(a) * 0.6); L0.add(leaf);
+      }
+      this.floors[0].colliders.push({ x0: x - 0.35, x1: x + 0.35, z0: R - 1.15, z1: R - 0.45, hi: 1.5 });
+      const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 0.3, 6, 1, true), new THREE.MeshStandardMaterial({ color: '#2a2018', metalness: 0.8, roughness: 0.4, wireframe: true }));
+      const door = x > 0 ? SHOP_X : RING_X; lamp.position.set(x + (x > door ? -0.5 : 0.5), 3.3, R - 0.25); L0.add(lamp);
+      const lg = glowSprite('#ffb060', 1.1, 0.9); lg.position.copy(lamp.position); L0.add(lg);
+    }
+    const globe = new THREE.Group(); globe.position.set(3.1, 0, 8.9); L0.add(globe);
+    globe.add(new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.3, 1.0, 10), wood0).translateY(0.5));
+    const orb = new THREE.Mesh(new THREE.SphereGeometry(0.42, 24, 16), new THREE.MeshStandardMaterial({ map: parchmentTex(), color: '#6a8aa0', roughness: 0.6 })); orb.position.y = 1.45; orb.rotation.z = 0.4; globe.add(orb);
+    const mer = new THREE.Mesh(new THREE.TorusGeometry(0.47, 0.025, 6, 32), brass); mer.position.y = 1.45; mer.rotation.y = Math.PI / 2; mer.rotation.x = 0.4; globe.add(mer);
+    this.floors[0].colliders.push({ x0: 2.8, x1: 3.4, z0: 8.6, z1: 9.2, hi: 1.5 });
+    const cand = new THREE.Group(); cand.position.set(-3.1, 0, 8.9); L0.add(cand);
+    cand.add(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.22, 2.0, 8), brass).translateY(1.0));
+    for (const [dx, dy] of [[-0.35, 2.05], [0, 2.2], [0.35, 2.05]]) { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.26, 8), new THREE.MeshStandardMaterial({ color: '#eae0c2', emissive: new THREE.Color('#332a18') })); c.position.set(dx, dy, 0); cand.add(c); const f = glowSprite('#ffb05a', 0.4); f.position.set(dx, dy + 0.22, 0); cand.add(f); }
+    this.floors[0].colliders.push({ x0: -3.4, x1: -2.8, z0: 8.6, z1: 9.2, hi: 1.5 });
+    // the Duelling Ring's arch
+    for (const x of [RING_X - doorW / 2 - 0.25, RING_X + doorW / 2 + 0.25]) {
+      const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.5, doorH, 0.6), stone); pillar.position.set(x, doorH / 2, R - 0.1); L0.add(pillar);
+      const cap = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.25, 0.75), stone); cap.position.set(x, 0.12, R - 0.1); L0.add(cap);
     }
     const arch = new THREE.Mesh(new THREE.TorusGeometry(doorW / 2 + 0.25, 0.28, 6, 18, Math.PI), stone);
-    arch.rotation.y = Math.PI / 2; arch.position.set(-R + 0.1, doorH, 0); L0.add(arch);
+    arch.position.set(RING_X, doorH, R - 0.1); L0.add(arch);
     this.arenaRunes = new THREE.MeshBasicMaterial({ color: '#7fe0d0', transparent: true, opacity: 0.8 });
     for (let i = 0; i < 9; i++) {
       const a = (i / 8) * Math.PI;
       const rune = new THREE.Mesh(new THREE.CircleGeometry(0.09, 3 + (i % 3)), this.arenaRunes);
-      rune.position.set(-R + 0.42, doorH + Math.sin(a) * (doorW / 2 + 0.25), Math.cos(a) * (doorW / 2 + 0.25)); rune.rotation.y = Math.PI / 2; L0.add(rune);
+      rune.position.set(RING_X + Math.cos(a) * (doorW / 2 + 0.25), doorH + Math.sin(a) * (doorW / 2 + 0.25), R - 0.42); rune.rotation.y = Math.PI; L0.add(rune);
     }
-    for (const z of [-doorW / 2 - 0.25, doorW / 2 + 0.25]) for (let k = 0; k < 4; k++) {
+    for (const x of [RING_X - doorW / 2 - 0.25, RING_X + doorW / 2 + 0.25]) for (let k = 0; k < 4; k++) {
       const rune = new THREE.Mesh(new THREE.CircleGeometry(0.08, 3 + k), this.arenaRunes);
-      rune.position.set(-R + 0.42, 0.8 + k * 0.9, z); rune.rotation.y = Math.PI / 2; L0.add(rune);
+      rune.position.set(x, 0.8 + k * 0.9, R - 0.42); rune.rotation.y = Math.PI; L0.add(rune);
     }
     // the Ring itself, a swirl of verdigris and violet light filling the arch
     this.arenaMat = new THREE.ShaderMaterial({
@@ -904,13 +1068,13 @@ export class Library implements View {
       transparent: true, depthWrite: false, side: THREE.DoubleSide,
     });
     this.arena = new THREE.Mesh(new THREE.PlaneGeometry(doorW, doorH + 1.0), this.arenaMat);
-    this.arena.position.set(-R - 0.3, (doorH + 1.0) / 2, 0); this.arena.rotation.y = Math.PI / 2; L0.add(this.arena);
-    this.arenaGlow = glowSprite('#7fe0d0', 6, 0.3); this.arenaGlow.position.set(-R + 0.3, 2.2, 0); L0.add(this.arenaGlow);
-    this.arenaLight = new THREE.PointLight('#8ac8ff', 26, 12, 1.6); this.arenaLight.position.set(-R + 1.3, 2.6, 0); S.add(this.arenaLight);
+    this.arena.position.set(RING_X, (doorH + 1.0) / 2, R + 0.3); this.arena.rotation.y = Math.PI; L0.add(this.arena);
+    this.arenaGlow = glowSprite('#7fe0d0', 6, 0.3); this.arenaGlow.position.set(RING_X, 2.2, R - 0.3); L0.add(this.arenaGlow);
+    this.arenaLight = new THREE.PointLight('#8ac8ff', 26, 12, 1.6); this.arenaLight.position.set(RING_X, 2.6, R - 1.3); S.add(this.arenaLight);
     {
       const t = signTexture(['The Duelling Ring'], { bg: '#1c1826', border: '#7fe0d0', ink: '#d8fff6' });
       const plate = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.8), new THREE.MeshStandardMaterial({ map: t, emissive: new THREE.Color('#9fe3d6'), emissiveIntensity: 0.35, emissiveMap: t }));
-      plate.position.set(-R + 0.45, doorH + 1.35, 0); plate.rotation.y = Math.PI / 2; L0.add(plate);
+      plate.position.set(RING_X, doorH + 1.35, R - 0.45); plate.rotation.y = Math.PI; L0.add(plate);
     }
     this.desk = new THREE.Group(); this.desk.position.set(0, 0, 8.4); L0.add(this.desk);
     const top = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.12, 1.3), wood0); top.position.y = 0.95; this.desk.add(top);
@@ -952,7 +1116,7 @@ export class Library implements View {
       while (ri < rooms.length - 1 && (t -= wts[ri]) > 0) ri++;
       const rm = rooms[ri];
       const x = ((rm.ix0 + rng() * (rm.ix1 - rm.ix0)) - P.N / 2) * C, z = ((rm.iz0 + rng() * (rm.iz1 - rm.iz0)) - P.N / 2) * C;
-      if (Math.hypot(x - WELL.x, z - WELL.z) < WELL_R + 1.2) continue;
+      if (this.spirals.some(sp => sp.top <= d && d <= sp.bot && Math.hypot(x - sp.x, z - sp.z) < sp.rHole + 1.2)) continue;
       if (F.colliders.some(b => x > b.x0 - 0.4 && x < b.x1 + 0.4 && z > b.z0 - 0.4 && z < b.z1 + 0.4)) continue;
       out.push([x, z]);
     }
@@ -1056,7 +1220,8 @@ export class Library implements View {
           }`,
         transparent: true, depthWrite: false,
       });
-      const water = new THREE.Mesh(holedSquare(this.floors[4].plan.half, WELL_R + 0.12), this.water); water.rotation.x = -Math.PI / 2; water.position.y = 0.32; g.add(water);
+      const hw = this.floors[4].plan.half;
+      const water = new THREE.Mesh(holedRect(-hw, hw, -hw, hw, this.spirals.filter(sp => sp.top <= 4 && 4 < sp.bot).map(sp => ({ x: sp.x, z: sp.z, r: sp.rHole + 0.12 }))), this.water); water.rotation.x = -Math.PI / 2; water.position.y = 0.32; g.add(water);
       const kelpMat = new THREE.MeshStandardMaterial({ color: '#2a6a4a', emissive: new THREE.Color('#0a3a2a'), transparent: true, opacity: 0.85, side: THREE.DoubleSide });
       for (const [x, z] of this.spots(4, rng, 40)) {
         const hgt = r(1.4, 2.8);
@@ -1155,7 +1320,7 @@ export class Library implements View {
   // scene, so they stay lit (and the light count stays the same) whichever floor is drawn.
   attachShop(shop: Shop) {
     this.shop = shop;
-    const host = shop.embedIn(this.floors[0].group, new THREE.Vector3(15.4, 0, 0), -Math.PI / 2);
+    const host = shop.embedIn(this.floors[0].group, new THREE.Vector3(SHOP_X, 0, R + 5.4), Math.PI);
     host.updateMatrixWorld(true);
     shop.keeperParts.lantern.parent?.remove(shop.keeperParts.lantern);
     const lights: THREE.Light[] = [];
@@ -1293,20 +1458,22 @@ export class Library implements View {
 
   // The highest thing to stand on beneath (feet + a step) at x, z: a floor, or the stair.
   groundAt(x: number, z: number, feet: number): number {
-    const dx = x - WELL.x, dz = z - WELL.z, r = Math.hypot(dx, dz);
     let best = -1e9;
     const reach = feet + STEP_UP;
     for (let k = 0; k <= DEEPEST; k++) {
       const fy = -k * LH;
-      if (fy > reach || (k < DEEPEST && r < WELL_R)) continue;
+      if (fy > reach || this.spirals.some(sp => sp.top <= k && k < sp.bot && Math.hypot(x - sp.x, z - sp.z) < sp.rHole)) continue;
       best = fy; break; // the first floor at or below you is the highest one
     }
-    if (r >= STAIR_IN - 0.05 && r <= STAIR_OUT + 0.05) {
-      let base = Math.atan2(dz, dx) - A0; base = ((base % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-      const hTop = -(base / (Math.PI * 2)) * PITCH;
-      const k = Math.max(0, Math.ceil((hTop - reach) / PITCH - 1e-9));
-      const h = hTop - k * PITCH;
-      if (h >= -DEEPEST * LH - 1e-6) best = Math.max(best, h);
+    // the steps of any spiral stair underfoot
+    for (const sp of this.spirals) {
+      const dx = x - sp.x, dz = z - sp.z, r = Math.hypot(dx, dz);
+      if (r < sp.rIn - 0.05 || r > sp.rOut + 0.05) continue;
+      let base = Math.atan2(dz, dx) - sp.a0; base = ((base % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+      const hTop = -sp.top * LH - (base / (Math.PI * 2)) * sp.pitch;
+      const k = Math.max(0, Math.ceil((hTop - reach) / sp.pitch - 1e-9));
+      const h = hTop - k * sp.pitch;
+      if (h >= -sp.bot * LH - 1e-6) best = Math.max(best, h);
     }
     // galleries, balconies, daises and the stairs up to them
     const F = this.floors[this.levelOf(feet)];
@@ -1348,18 +1515,24 @@ export class Library implements View {
     const d = this.levelOf(feet);
     const F = this.floors[d];
     if (d === 0) {
-      const onTop = feet > -0.6 && feet < 1.2; // the doorways only exist on the Reading Room's floor
-      if (onTop && p.x > R - 0.95 && (Math.abs(p.z) < 1.3 || p.x > R)) {
-        // in the east doorway or the shop behind it
-        p.x = Math.min(SHOP.x1, p.x); p.z = Math.max(-SHOP.z, Math.min(SHOP.z, p.z));
-        this.push(p, { x0: R - 0.1, x1: R + 0.1, z0: -6, z1: -1.5 });
-        this.push(p, { x0: R - 0.1, x1: R + 0.1, z0: 1.5, z1: 6 });
+      const onFloor = feet > -0.6 && feet < 1.2; // the doorways and the arch only exist on the Reading Room's floor
+      if (onFloor && p.z > R - 0.95 && (Math.abs(p.x - SHOP_X) < 1.3 || (p.z > R && Math.abs(p.x - SHOP_X) < 6))) {
+        // in the shop's doorway or the shop behind it
+        p.z = Math.min(R + SHOP_DEPTH, p.z); p.x = Math.max(SHOP_X - 5.1, Math.min(SHOP_X + 5.1, p.x));
+        this.push(p, { x0: SHOP_X - 7, x1: SHOP_X - 1.5, z0: R - 0.1, z1: R + 0.1 });
+        this.push(p, { x0: SHOP_X + 1.5, x1: SHOP_X + 7, z0: R - 0.1, z1: R + 0.1 });
+      } else if (onFloor && p.z > R - 0.95 && Math.abs(p.x - RING_X) < 1.3) {
+        p.z = Math.min(R + 0.5, p.z); // into the Ring's arch
+      } else if (feet < 4 && feet > -0.6 && p.z < -R + 0.95 && (Math.abs(p.x) < ARCH_W - 0.35 || p.z < -R - 0.4)) {
+        // through the arch and in the stair tower
+        const inArch = p.z > -R - 0.6;
+        const hw = inArch ? ARCH_W - 0.35 : TOWER.x1 - 0.95;
+        p.x = Math.max(-hw, Math.min(hw, p.x)); p.z = Math.max(TOWER.z0 + 0.95, p.z);
       } else {
-        const inDoor = onTop && Math.abs(p.z) < 1.3;
-        p.x = Math.max(inDoor ? -R - 0.5 : -R + 0.95, Math.min(R - 0.95, p.x));
+        p.x = Math.max(-R + 0.95, Math.min(R - 0.95, p.x));
         p.z = Math.max(-R + 0.95, Math.min(R - 0.95, p.z));
       }
-      if (onTop) this.push(p, this.deskCollider);
+      if (onFloor) this.push(p, this.deskCollider);
     } else {
       // solid cells of the plan are walls, and so are passages too low to walk through upright
       const P = F.plan, upright = this.eyeH > EYE_LOW + 0.25;
@@ -1383,15 +1556,18 @@ export class Library implements View {
 
   // The brass rail round each floor's hole: walk in through the landing, or jump over it.
   private rails(prev: THREE.Vector3, p: THREE.Vector3, feet: number) {
-    const rPrev = Math.hypot(prev.x - WELL.x, prev.z - WELL.z), r = Math.hypot(p.x - WELL.x, p.z - WELL.z);
-    const RR = WELL_R + 0.05;
-    if (!(rPrev >= RR - 0.02 && r < RR + 0.15)) return;
-    const k = Math.round(-feet / LH);
-    if (k >= DEEPEST || feet - (-k * LH) > 0.72 || feet < -k * LH - 0.1) return; // jumped high enough to clear it
-    const a = Math.atan2(p.z - WELL.z, p.x - WELL.x);
-    if (Math.abs(Math.atan2(Math.sin(a - A0), Math.cos(a - A0))) < LAND_GAP) return; // the open landing
-    const s = (RR + 0.18) / Math.max(r, 0.001);
-    p.x = WELL.x + (p.x - WELL.x) * s; p.z = WELL.z + (p.z - WELL.z) * s;
+    for (const sp of this.spirals) {
+      const rPrev = Math.hypot(prev.x - sp.x, prev.z - sp.z), r = Math.hypot(p.x - sp.x, p.z - sp.z);
+      const RR = sp.rHole + 0.05;
+      if (!(rPrev >= RR - 0.02 && r < RR + 0.15)) continue;
+      const k = Math.round(-feet / LH);
+      const railed = (sp.top <= k && k < sp.bot) || (!sp.main && k === sp.bot);
+      if (!railed || feet - (-k * LH) > 0.72 || feet < -k * LH - 0.1) continue; // jumped high enough to clear it
+      const a = Math.atan2(p.z - sp.z, p.x - sp.x);
+      if (Math.abs(Math.atan2(Math.sin(a - sp.a0), Math.cos(a - sp.a0))) < sp.gap) continue; // the open landing
+      const s = (RR + 0.18) / Math.max(r, 0.001);
+      p.x = sp.x + (p.x - sp.x) * s; p.z = sp.z + (p.z - sp.z) * s;
+    }
   }
 
   // The bookcase down the outer edge of the stair: you can't walk through it from the steps or the floor,
@@ -1412,24 +1588,28 @@ export class Library implements View {
     p.x = WELL.x + (p.x - WELL.x) * s; p.z = WELL.z + (p.z - WELL.z) * s;
   }
 
-  // Inside the stairwell, between floors, the shaft wall holds you in.
+  // Inside a stairwell, between floors, the shaft wall holds you in; the smaller stairs' column stands in the middle.
   private shaftWall(prev: THREE.Vector3, p: THREE.Vector3, feet: number) {
-    const rPrev = Math.hypot(prev.x - WELL.x, prev.z - WELL.z), r = Math.hypot(p.x - WELL.x, p.z - WELL.z);
-    if (rPrev > WELL_R - 0.25 || r <= WELL_R - 0.25) return;
     const head = feet + 1.75;
-    for (let k = 1; k <= DEEPEST; k++) {
-      const top = -(k - 1) * LH, bottom = top - (LH - H); // the slab under floor k-1
-      if (head > bottom && feet < top - 0.05) {
-        const s = (WELL_R - 0.25) / r;
-        p.x = WELL.x + (p.x - WELL.x) * s; p.z = WELL.z + (p.z - WELL.z) * s;
-        return;
+    for (const sp of this.spirals) {
+      const r = Math.hypot(p.x - sp.x, p.z - sp.z);
+      if (!sp.main && r < sp.rIn + BODY) { const s = (sp.rIn + BODY) / Math.max(r, 0.001); p.x = sp.x + (p.x - sp.x) * s; p.z = sp.z + (p.z - sp.z) * s; continue; }
+      const rPrev = Math.hypot(prev.x - sp.x, prev.z - sp.z);
+      if (rPrev > sp.rHole - 0.25 || r <= sp.rHole - 0.25) continue;
+      for (let k = sp.top; k < sp.bot; k++) {
+        const top = -k * LH, bottom = top - sp.slab[k - sp.top]; // the slab under floor k
+        if (head > bottom && feet < top - 0.05) {
+          const s = (sp.rHole - 0.25) / r;
+          p.x = sp.x + (p.x - sp.x) * s; p.z = sp.z + (p.z - sp.z) * s;
+          break;
+        }
       }
     }
   }
 
   // which shop the reader is standing in: -1 for the Curio Shop, a floor number for a hidden one, or null
   inShop(): number | null {
-    if (this.feet > -0.6 && this.feet < 1.2 && this.pos.x > R + 0.4) return -1;
+    if (this.feet > -0.6 && this.feet < 1.2 && this.pos.z > R + 0.4 && Math.abs(this.pos.x - SHOP_X) < 5.6) return -1;
     if (this.levelOf(this.feet) !== this.level) return null;
     const p = new THREE.Vector3();
     for (const k in this.stalls) {
@@ -1440,7 +1620,7 @@ export class Library implements View {
     return null;
   }
   // true when the reader steps into the Duelling Ring's arch
-  atArena() { return this.feet > -0.6 && this.feet < 1.2 && this.pos.x < -R + 0.6 && Math.abs(this.pos.z) < 1.3; }
+  atArena() { return this.feet > -0.6 && this.feet < 1.2 && this.pos.z > R - 0.6 && Math.abs(this.pos.x - RING_X) < 1.3; }
 
   // ---------------------------------------------------------------- picking
   // Try the exact point first, then a few nearby points, so clicks in the gap above a row still find a book.
@@ -1611,7 +1791,7 @@ export class Library implements View {
       if (lv > 0) {
         const ix = Math.floor(this.pos.x / C + P.N / 2), iz = Math.floor(this.pos.z / C + P.N / 2);
         const top = -lv * LH + (P.ceil[iz * P.N + ix] || H);
-        if (feet + this.eyeH + 0.18 > top && this.vy > 0 && Math.hypot(this.pos.x - WELL.x, this.pos.z - WELL.z) > WELL_R + 1) { feet = top - this.eyeH - 0.18; this.vy = 0; }
+        if (feet + this.eyeH + 0.18 > top && this.vy > 0 && !this.spirals.some(sp => Math.hypot(this.pos.x - sp.x, this.pos.z - sp.z) < sp.rHole + 1)) { feet = top - this.eyeH - 0.18; this.vy = 0; }
       }
       // and so does the underside of a gallery or balcony
       {
@@ -1626,7 +1806,7 @@ export class Library implements View {
     this.lightT -= dt;
     if (this.lightT <= 0) {
       this.lightT = 0.3; this.placeLights();
-      this.nearShaft = Math.hypot(this.pos.x - WELL.x, this.pos.z - WELL.z) < 17;
+      this.nearShaft = this.spirals.some(sp => sp.top <= this.level && this.level <= sp.bot && Math.hypot(this.pos.x - sp.x, this.pos.z - sp.z) < (sp.main ? 17 : 11));
       this.setVisible();
     }
     // the air shifts towards this floor's colour
@@ -1642,6 +1822,7 @@ export class Library implements View {
     this.lantern.position.copy(this.pos).add(new THREE.Vector3(0.3, -0.2, 0));
     this.lantern.intensity = E.lantern > 0.05 ? E.lantern + Math.sin(time * 11) * 0.3 + Math.sin(time * 5.3) * 0.2 : 0;
     const top = this.level === 0 ? 1 : 0;
+    this.hallLights.forEach((Lh, i) => { Lh.intensity = top * (i === 0 ? 55 : 30) * (1 + Math.sin(time * 3 + i) * 0.04); });
     this.arenaLight.intensity = (24 + Math.sin(time * 2.3) * 4) * top; this.deskLight.intensity = 2.5 * top;
 
     // camera: bob while walking, dip on landing
@@ -1678,8 +1859,8 @@ export class Library implements View {
     if (d === 0) {
       if (r < 0.3) { const [x, z] = HALL_CANDLES[Math.floor(rnd() * HALL_CANDLES.length)]; this.embers.emit({ x: x + (rnd() - 0.5) * 0.2, y: 1.8, z, vy: 0.4, color: '#ffc070', size: 0.04, life: 1.2, jitter: 0.6 }); }
       if (rnd() < 0.4) this.motes.emit({ x: (rnd() - 0.5) * 18, y: rnd() * 5, z: (rnd() - 0.5) * 18, color: '#ffe2b0', size: 0.05 + rnd() * 0.05, life: 4 + rnd() * 5, drag: 0, jitter: 0.25, alpha: 0.7 });
-      if (rnd() < 0.5) this.motes.emit({ x: R - 0.5 - rnd() * 3, y: 0.5 + rnd() * 3, z: (rnd() - 0.5) * 2.6, vx: -0.3, color: '#ffc080', size: 0.06, life: 4, drag: 0, jitter: 0.3, alpha: 0.8 });
-      if (rnd() < 0.5) this.motes.emit({ x: -R + 0.3 + rnd() * 2, y: 0.4 + rnd() * 3.6, z: (rnd() - 0.5) * 2.6, vx: 0.35, color: rnd() < 0.5 ? '#7fe0d0' : '#b89aff', size: 0.06, life: 4, drag: 0, jitter: 0.3, alpha: 0.8 });
+      if (rnd() < 0.5) this.motes.emit({ x: SHOP_X + (rnd() - 0.5) * 2.6, y: 0.5 + rnd() * 3, z: R - 0.5 - rnd() * 3, vz: -0.3, color: '#ffc080', size: 0.06, life: 4, drag: 0, jitter: 0.3, alpha: 0.8 });
+      if (rnd() < 0.5) this.motes.emit({ x: RING_X + (rnd() - 0.5) * 2.6, y: 0.4 + rnd() * 3.6, z: R - 0.3 - rnd() * 2, vz: -0.35, color: rnd() < 0.5 ? '#7fe0d0' : '#b89aff', size: 0.06, life: 4, drag: 0, jitter: 0.3, alpha: 0.8 });
     } else if (r < 0.4) {
       // each floor's air has its own drift
       const vy = d === 4 ? 0.6 : d === 5 ? 0.45 : d === DEEPEST ? -0.25 : d === 3 ? 0.12 : d === 6 ? 0 : -0.04;

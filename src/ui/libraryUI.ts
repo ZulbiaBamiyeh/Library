@@ -182,7 +182,7 @@ function onFloor(d: number) {
 // ----- the Duelling Ring, through the west arch -----
 function enterRing() {
   const r = run!, lib = app.library;
-  if (lib.atArena()) { lib.pos.x = -8.4; lib.keys = {}; lib.joy = { x: 0, y: 0 }; }
+  if (lib.atArena()) { lib.pos.z = 8.4; lib.keys = {}; lib.joy = { x: 0, y: 0 }; }
   if (!r.lines.some(Boolean)) {
     toast('Your tome is blank. Write at least one spell on a line at the Binding Desk first.');
     return;
@@ -226,7 +226,7 @@ function setShopHere(s: number | null) {
 // Walk straight into the Curio Shop (from a button, or arriving from the desk).
 export function enterShop() {
   const lib = app.library;
-  lib.pos.set(10.7, 1.62, 0); lib.eyeH = 1.62; lib.yaw = -Math.PI / 2; lib.pitch = -0.16; lib.vy = 0; lib.crouch = false;
+  lib.pos.set(6, 1.62, 10.6); lib.eyeH = 1.62; lib.yaw = Math.PI; lib.pitch = -0.16; lib.vy = 0; lib.crouch = false;
   play('door');
 }
 
