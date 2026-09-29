@@ -157,12 +157,34 @@ function render() {
   </section>`;
   // --- side ---
   h += `<section class="bd-side"><div class="bd-box"><h4>Satchel <small>${r.satchel.filter(Boolean).length}/6</small></h4><div class="bd-sat">${r.satchel.map((_, i) => slotHtml({ where: 'sat', i }, 'empty')).join('')}</div></div>
-    ${sel && slotGet(r, sel) ? `<div class="bd-box bd-info">${infoHtml()}</div>` : ''}</section>`;
+    ${sel && slotGet(r, sel) && !lastTouch ? `<div class="bd-box bd-info">${infoHtml()}</div>` : ''}</section>`;
   h += `</main>`;
   d.innerHTML = h;
   document.getElementById('bd-peek')?.classList.add('hidden'); peekKey = '';
   born = false;
   wire();
+  touchSheet();
+}
+
+// On a phone there is no hovering: tapping a spell picks it up and slides its card up from the bottom,
+// with what you can do with it. Tap the card's close (or the spell again) to put it down.
+let lastTouch = COARSE;
+function touchSheet() {
+  const sh = document.getElementById('bd-sheet');
+  if (!sh) return;
+  const s = sel ? slotGet(run!, sel) : null;
+  if (!s || !lastTouch) { sh.classList.add('hidden'); sh.innerHTML = ''; return; }
+  const where = sel!.where;
+  sh.innerHTML = `<div class="preview">${spellDetail(s)}</div><div class="bd-acts">
+    ${where !== 'base' ? '<button class="btn small" data-act="base">To base</button>' : ''}
+    ${where !== 'inf' ? '<button class="btn small" data-act="inf">To infusion</button>' : ''}
+    ${where !== 'line' ? '<button class="btn quiet small" data-act="line">Write in tome</button>' : ''}
+    ${where !== 'sat' ? '<button class="btn quiet small" data-act="sat">To satchel</button>' : ''}
+    <button class="btn quiet small" data-act="burn">Burn</button><button class="btn quiet small" id="sh-close">Close</button></div>
+    <div class="bd-sheet-hint">or tap a slot to move it there</div>`;
+  sh.classList.remove('hidden');
+  sh.querySelectorAll<HTMLButtonElement>('[data-act]').forEach(b => b.onclick = () => act(b.dataset.act!));
+  $('#sh-close').onclick = () => { sel = null; render(); };
 }
 
 function canBind() {
@@ -257,6 +279,7 @@ function targetAt(x: number, y: number): HTMLElement | null {
 }
 
 function onDown(e: PointerEvent) {
+  lastTouch = e.pointerType !== 'mouse';
   const el = (e.target as HTMLElement).closest('[data-w]') as HTMLElement | null;
   if (!el || e.button > 0) return;
   const ref: Ref = { where: el.dataset.w as Ref['where'], i: +el.dataset.i! };
@@ -404,7 +427,7 @@ function setSeated(on: boolean) {
     st.hover = null; st.keys = {};
     sel = null; render(); play('page', 0.5);
   } else {
-    sel = null;
+    sel = null; touchSheet();
     document.querySelectorAll('.bd-ghost').forEach(g => g.remove());
     drag = null;
     if (lockAllowed && !COARSE) tryLock();
@@ -519,7 +542,7 @@ export const deskScreen: Screen = {
     ui().innerHTML = `<div id="study-hud"><div id="crosshair"></div>
         <div id="look-prompt" class="hidden">Click to look around · WASD walk · click the desk to bind · the door leads back · Esc frees the mouse</div>
         <div id="joystick" class="${COARSE ? '' : 'hidden'}"><div class="knob"></div></div></div>
-      <div id="study-tip" class="hidden"></div><div id="bd" class="closed"></div><div id="bd-peek" class="preview hidden"></div>`;
+      <div id="study-tip" class="hidden"></div><div id="bd" class="closed"></div><div id="bd-peek" class="preview hidden"></div><div id="bd-sheet" class="hidden"></div>`;
     sel = null;
     tab = 'bind';
     const d = $('#bd');
