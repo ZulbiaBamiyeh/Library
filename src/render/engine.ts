@@ -5,6 +5,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { quality, Q } from './quality';
 
 export interface View {
   scene: THREE.Scene;
@@ -58,10 +59,13 @@ export class Engine {
   flash = new THREE.Vector4(0, 0, 0, 0);
   aberr = 0;
   pixelRatio: number;
+  onQualityDrop?: (level: number) => void;
+  private qLevel = -1;
+  private fps = { t: 0, frames: 0, slow: 0, warm: 0 };
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
-    this.pixelRatio = Math.min(window.devicePixelRatio || 1, 1.6);
+    this.pixelRatio = Q.pixelRatio(quality.level);
     this.renderer.setPixelRatio(this.pixelRatio);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
@@ -111,8 +115,35 @@ export class Engine {
     this.flash.set(c.r, c.g, c.b, Math.max(this.flash.w, strength));
   }
 
+  // Apply the quality level: resolution, anti-aliasing and bloom.
+  private applyQuality() {
+    const lv = quality.level;
+    this.qLevel = lv;
+    this.pixelRatio = Q.pixelRatio(lv);
+    this.renderer.setPixelRatio(this.pixelRatio);
+    for (const rt of [this.composer.renderTarget1, this.composer.renderTarget2]) { if (rt.samples !== Q.samples(lv)) { rt.samples = Q.samples(lv); rt.dispose(); } }
+    this.bloom.enabled = Q.bloom(lv);
+    this.resize();
+  }
+
+  // In auto mode, a frame rate that stays under ~35 for a few seconds drops the quality a level.
+  private watchFps(dt: number) {
+    if (quality.mode !== 'auto' || quality.level === 0) return;
+    const f = this.fps;
+    f.warm += dt;
+    if (f.warm < 4) return; // let shaders compile first
+    f.t += dt; f.frames++;
+    if (f.t < 2) return;
+    const fps = f.frames / f.t;
+    f.t = 0; f.frames = 0;
+    f.slow = fps < 35 ? f.slow + 1 : 0;
+    if (f.slow >= 2) { f.slow = 0; f.warm = 0; quality.level--; this.onQualityDrop?.(quality.level); }
+  }
+
   frame(dt: number, time: number) {
     if (!this.view) return;
+    if (this.qLevel !== quality.level) this.applyQuality();
+    this.watchFps(dt);
     this.view.update(dt, time);
     // views may change their exposure and vignette as you move (the library darkens as you go down)
     if (this.view.exposure !== undefined) this.renderer.toneMappingExposure = this.view.exposure;

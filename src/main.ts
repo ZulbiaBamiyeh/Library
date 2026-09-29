@@ -10,6 +10,8 @@ import { deskScreen } from './ui/deskUI';
 import { duelScreen } from './ui/duelUI';
 import { loadRun, run } from './game/run';
 import { ambience, initAudio, isMuted, setMuted } from './audio/sfx';
+import { quality, setQualityMode, QUALITY_MODES } from './render/quality';
+import { toast } from './ui/dom';
 
 // the Curio Shop is a room of the library, so going to the shop means walking into it there
 const screens: Record<Exclude<ScreenName, 'shop'>, Screen> = { title: titleScreen, library: libraryScreen, desk: deskScreen, duel: duelScreen };
@@ -58,7 +60,19 @@ muteBtn.className = 'btn quiet tiny';
 const paintMute = () => { muteBtn.textContent = isMuted() ? 'Sound off' : 'Sound on'; muteBtn.setAttribute('aria-pressed', String(!isMuted())); };
 paintMute();
 muteBtn.onclick = () => { setMuted(!isMuted()); paintMute(); };
-document.body.appendChild(muteBtn);
+// graphics: Auto steps down by itself on a slow machine; the others fix the level
+const gfxBtn = document.createElement('button');
+gfxBtn.id = 'gfx';
+gfxBtn.className = 'btn quiet tiny';
+const LEVEL_NAME = ['low', 'medium', 'high'];
+const paintGfx = () => { gfxBtn.textContent = quality.mode === 'auto' ? `Graphics: auto (${LEVEL_NAME[quality.level]})` : `Graphics: ${quality.mode}`; };
+paintGfx();
+gfxBtn.onclick = () => { setQualityMode(QUALITY_MODES[(QUALITY_MODES.indexOf(quality.mode) + 1) % QUALITY_MODES.length]); paintGfx(); };
+app.engine.onQualityDrop = (lv) => { paintGfx(); toast(`Graphics lowered to ${LEVEL_NAME[lv]} to keep things smooth.`); };
+const sys = document.createElement('div');
+sys.id = 'sys';
+sys.append(gfxBtn, muteBtn);
+document.body.appendChild(sys);
 
 app.go('title');
 

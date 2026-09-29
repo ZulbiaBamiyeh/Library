@@ -18,8 +18,9 @@ export function toast(msg: string, gold = false) {
 }
 
 let modalClose: (() => void) | null = null;
+let modalHadLock = false; // the mouse was captured when the dialog opened, so it is captured again when it closes
 export function showModal(html: string, onClose?: () => void) {
-  if (document.pointerLockElement) document.exitPointerLock(); // give the mouse back for the dialog
+  if (document.pointerLockElement) { modalHadLock = true; document.exitPointerLock(); } // give the mouse back for the dialog
   const m = $('#modal');
   m.innerHTML = html;
   m.classList.remove('hidden');
@@ -32,6 +33,10 @@ export function closeModal() {
   if (m.classList.contains('hidden')) return;
   m.classList.add('hidden'); m.innerHTML = '';
   const f = modalClose; modalClose = null; f?.();
+  if (m.classList.contains('hidden')) {
+    const relock = modalHadLock; modalHadLock = false;
+    window.dispatchEvent(new CustomEvent('modalclosed', { detail: { relock } }));
+  }
 }
 export function modalOpen() { return !$('#modal').classList.contains('hidden'); }
 

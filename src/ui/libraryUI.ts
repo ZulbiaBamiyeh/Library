@@ -232,7 +232,8 @@ export function enterShop() {
 
 // ----- input -----
 const input = { down: false, id: -1, lx: 0, ly: 0, t0: 0, moved: 0 };
-let lockAllowed = true; // turns false for good if the browser refuses pointer lock
+let lockAllowed = true; // turns false for good if the browser refuses pointer lock before it has ever worked
+let everLocked = false;
 let handlers: { t: EventTarget; k: string; f: EventListener }[] = [];
 function on(t: EventTarget, k: string, f: EventListener) { t.addEventListener(k, f); handlers.push({ t, k, f }); }
 
@@ -287,11 +288,19 @@ export const libraryScreen: Screen = {
     const locked = () => document.pointerLockElement === canvas;
     let mouseLook = !COARSE && lockAllowed;
     // if the page may not capture the mouse (some embedded frames), fall back to drag-to-look
-    const lockRefused = () => { mouseLook = false; lockAllowed = false; paintPrompt(); };
+    // a refusal after the lock has worked once is only the browser's cool-down after the mouse was freed;
+    // the next click tries again
+    const lockRefused = () => { if (everLocked) { paintPrompt(); return; } mouseLook = false; lockAllowed = false; paintPrompt(); };
+    const tryLock = () => {
+      if (!('requestPointerLock' in canvas)) { lockRefused(); return; }
+      try { const pr = canvas.requestPointerLock() as unknown as Promise<void> | undefined; pr?.catch?.(lockRefused); } catch { lockRefused(); }
+    };
+    // closing a book or a dialog that was opened with the mouse captured captures it again
+    on(window, 'modalclosed', ((e: CustomEvent<{ relock: boolean }>) => { if (e.detail.relock && mouseLook && app.screen === 'library' && !locked()) tryLock(); }) as EventListener);
     const paintPrompt = () => { const el = document.getElementById('look-prompt'); if (el) el.classList.toggle('hidden', !mouseLook || locked() || modalOpen()); };
     on(document, 'pointerlockerror', lockRefused as EventListener);
     paintPrompt();
-    on(document, 'pointerlockchange', (() => { paintPrompt(); if (!locked()) { lib.setHover(null); $('#hover-tip').classList.add('hidden'); } }) as EventListener);
+    on(document, 'pointerlockchange', (() => { if (locked()) everLocked = true; paintPrompt(); if (!locked()) { lib.setHover(null); $('#hover-tip').classList.add('hidden'); } }) as EventListener);
     on(document, 'mousemove', ((e: MouseEvent) => {
       if (!locked() || !active()) return;
       lib.yaw -= e.movementX * 0.0022; lib.pitch = Math.max(-1.35, Math.min(1.35, lib.pitch - e.movementY * 0.0022));
@@ -300,8 +309,8 @@ export const libraryScreen: Screen = {
       if (!active()) return;
       if (mouseLook && e.pointerType === 'mouse') {
         if (!locked()) {
-          if (!('requestPointerLock' in canvas)) { lockRefused(); }
-          else { try { const pr = canvas.requestPointerLock() as unknown as Promise<void> | undefined; pr?.catch?.(lockRefused); } catch { lockRefused(); } return; }
+          tryLock();
+          if (mouseLook) return;
         } else {
           act(lib.pick(window.innerWidth / 2, window.innerHeight / 2));
           return;
