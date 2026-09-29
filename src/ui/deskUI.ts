@@ -1,12 +1,12 @@
 // The Binding Desk: one screen, no scrolling. The tome on the left, the binding altar in the
 // middle, the satchel and details on the right. Drag spells with mouse or touch, or tap to pick up and tap to place.
 import { app, ui, type Screen } from './app';
-import { $, closeModal, esc, goldHtml, pips, showModal, spellChip, spellDetail, toast } from './dom';
+import { $, artifactCard, closeModal, esc, goldHtml, modalOpen, pips, reagentCard, showModal, spellChip, spellDetail, toast } from './dom';
 import { run, saveRun, slotGet, slotSet, allOwned, type Ref } from '../game/run';
 import { discover, isFound } from '../game/codex';
 import { canInfuse, discoveriesOf, fuse, maxInfusions, resolveSpell, type SpellInst } from '../data/fusion';
 import { ESS, FORM_INFO, SPELLS } from '../data/spells';
-import { REAGENTS } from '../data/artifacts';
+import { ARTIFACTS, REAGENTS } from '../data/artifacts';
 import { COMPOUNDS, LEGENDARY } from '../data/codex';
 import { WARD_CONDS, type WardCond } from '../sim/types';
 import { PACE } from '../sim/duel';
@@ -119,6 +119,7 @@ function infoHtml(): string {
 function render() {
   const r = run!;
   const d = $('#bd');
+  app.study.setOwned(r.staff, r.trinkets, r.stash, r.reagents); // binding can use up a reagent on the desk
   const st = tomeStats();
   const nextLine = LINE_UNLOCKS.find(x => x > r.round && linesForRound(x) > r.lines.length);
   const nextWard = WARD_UNLOCKS.find(x => x > r.round && wardsForRound(x) > r.wards.length);
@@ -126,7 +127,7 @@ function render() {
   let h = `<header class="bd-head">
     <div class="bd-title"><h2>The Binding Desk</h2><div class="bd-sub">Round ${r.round} ${pips(r.wins, r.losses)} ${goldHtml(r.gold)}</div><div class="bd-opp">Next duel: <b>${esc(opp.name)}</b>, ${esc(opp.title || '')}</div></div>
     <div class="bd-tabs" role="tablist"><button role="tab" data-tab="tome" class="${tab === 'tome' ? 'on' : ''}">Tome</button><button role="tab" data-tab="bind" class="${tab === 'bind' ? 'on' : ''}">Bind</button></div>
-    <div class="bd-nav"><button class="btn quiet small" id="d-codex">Codex</button><button class="btn quiet small" id="d-lib">Library</button><button class="btn quiet small" id="d-shop">Curio Shop</button>
+    <div class="bd-nav"><button class="btn quiet small" id="d-codex">Codex</button><button class="btn quiet small" id="d-lib">Library</button><button class="btn quiet small" id="d-relax" aria-pressed="false">Sit back</button>
       <button class="btn gold" id="d-duel">Begin the duel →</button></div>
   </header>
   <main class="bd-main" data-tab="${tab}">`;
@@ -326,7 +327,7 @@ function wire() {
   };
   $('#d-codex').onclick = showCodex;
   $('#d-lib').onclick = () => { setArrival('desk'); app.go('library'); };
-  $('#d-shop').onclick = () => app.go('shop');
+  $('#d-relax').onclick = () => setRelaxed(!app.study.relaxed);
   $('#d-duel').onclick = () => {
     const r = run!;
     if (!r.lines.some(Boolean)) { toast('Write at least one spell on a line of your tome.'); return; }
@@ -342,18 +343,51 @@ function wire() {
 }
 
 const listeners: [string, EventListener][] = [['pointerdown', onDown as EventListener], ['pointermove', onMove as EventListener], ['pointerup', onUp as EventListener], ['pointercancel', onUp as EventListener]];
-const onKey = (e: KeyboardEvent) => { if (e.code === 'Escape' && sel) { sel = null; render(); } };
+const onKey = (e: KeyboardEvent) => {
+  if (e.code === 'Escape' && app.study.relaxed && !modalOpen()) { setRelaxed(false); return; }
+  if (e.code === 'Escape' && sel) { sel = null; render(); }
+};
+
+// ----- the study around the desk: sit back to take it in, and look over your curios on their shelves -----
+function setRelaxed(on: boolean) {
+  app.study.relaxed = on;
+  document.getElementById('bd')?.classList.toggle('relaxed', on);
+  document.getElementById('study-back')?.classList.toggle('hidden', !on);
+  if (!on) { app.study.hover = null; document.getElementById('study-tip')?.classList.add('hidden'); app.engine.renderer.domElement.style.cursor = ''; }
+}
+function onStudyMove(e: PointerEvent) {
+  const st = app.study;
+  st.pointer.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
+  if (!st.relaxed || modalOpen()) return;
+  const s = st.pick(e.clientX, e.clientY);
+  st.hover = s;
+  const tip = document.getElementById('study-tip');
+  if (tip) {
+    if (s) { tip.textContent = s.kind === 'art' ? ARTIFACTS[s.id].name : REAGENTS[s.id].name; tip.style.left = e.clientX + 'px'; tip.style.top = e.clientY + 'px'; tip.classList.remove('hidden'); }
+    else tip.classList.add('hidden');
+  }
+  app.engine.renderer.domElement.style.cursor = s ? 'pointer' : '';
+}
+function onStudyClick(e: PointerEvent) {
+  const st = app.study;
+  if (!st.relaxed || modalOpen()) return;
+  const s = st.pick(e.clientX, e.clientY);
+  if (!s) return;
+  showModal(`<div class="sheet" role="dialog">${s.kind === 'art' ? artifactCard(s.id) : reagentCard(s.id)}<div class="actions"><button class="btn quiet" id="st-close">Put it back</button></div></div>`);
+  $('#st-close').onclick = closeModal;
+}
 
 export const deskScreen: Screen = {
   mount() {
-    const lib = app.library;
-    lib.titleSpin = false;
-    lib.pos.set(0, 2.5, 6.6); lib.yaw = Math.PI; lib.pitch = -0.55;
-    app.engine.setView(lib);
     const r = run!;
+    const st = app.study;
+    st.relaxed = false;
+    st.setOwned(r.staff, r.trinkets, r.stash, r.reagents);
+    app.engine.setView(st);
     while (r.lines.length < linesForRound(r.round)) r.lines.push(null);
     while (r.wards.length < wardsForRound(r.round)) r.wards.push({ cond: 'loop', spell: null });
-    ui().innerHTML = `<div id="bd"></div>`;
+    ui().innerHTML = `<div id="bd"></div><div id="study-tip" class="hidden"></div><button id="study-back" class="btn quiet hidden">Back to the desk</button>`;
+    $('#study-back').onclick = () => setRelaxed(false);
     sel = null;
     // put the first new spell in reach: if the tome has room and the satchel has spells, the tab opens on Bind
     tab = 'bind';
@@ -361,8 +395,14 @@ export const deskScreen: Screen = {
     const d = $('#bd');
     for (const [k, f] of listeners) d.addEventListener(k, f);
     window.addEventListener('keydown', onKey);
+    const cv = app.engine.renderer.domElement;
+    cv.addEventListener('pointermove', onStudyMove); cv.addEventListener('pointerup', onStudyClick);
   },
   unmount() {
+    const cv = app.engine.renderer.domElement;
+    cv.removeEventListener('pointermove', onStudyMove); cv.removeEventListener('pointerup', onStudyClick);
+    cv.style.cursor = '';
+    app.study.relaxed = false; app.study.hover = null;
     window.removeEventListener('keydown', onKey);
     document.querySelectorAll('.bd-ghost').forEach(g => g.remove());
     drag = null;

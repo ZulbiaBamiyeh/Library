@@ -2,6 +2,7 @@
 import type { Engine } from '../render/engine';
 import type { Library } from '../render/library';
 import type { Shop } from '../render/shop';
+import type { Study } from '../render/study';
 import type { Board } from '../render/board';
 
 export type ScreenName = 'title' | 'library' | 'shop' | 'desk' | 'duel';
@@ -11,6 +12,7 @@ export const app = {
   engine: null as unknown as Engine,
   library: null as unknown as Library,
   shop: null as unknown as Shop,
+  study: null as unknown as Study,
   board: null as unknown as Board,
   screen: 'title' as ScreenName,
   devSpeed: 1,

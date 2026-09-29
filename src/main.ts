@@ -2,6 +2,7 @@ import './styles.css';
 import { Engine } from './render/engine';
 import { Library } from './render/library';
 import { Shop } from './render/shop';
+import { Study } from './render/study';
 import { Board } from './render/board';
 import { app, type Screen, type ScreenName } from './ui/app';
 import { titleScreen } from './ui/titleUI';
@@ -21,6 +22,7 @@ app.engine = new Engine(canvas);
 app.library = new Library();
 app.shop = new Shop();
 app.library.attachShop(app.shop);
+app.study = new Study();
 app.board = new Board();
 loadRun();
 
@@ -38,6 +40,8 @@ app.go = (to: ScreenName) => {
   if (name !== 'title' && !run) name = 'title';
   busy = true;
   const fade = document.getElementById('fade')!;
+  // stepping into (or out of) the study is a step sideways out of the world
+  fade.classList.toggle('portal', name === 'desk' || app.screen === 'desk');
   fade.classList.add('on');
   setTimeout(() => {
     current?.unmount();
