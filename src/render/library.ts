@@ -804,6 +804,7 @@ export class Library implements View {
         addFace(new THREE.Vector3(x, 0, z - 0.33), Math.PI, 4, 2.6, false, 'h' + i, 0, false);
         colliders.push({ x0: x - 1.3, x1: x + 1.3, z0: z - 0.5, z1: z + 0.5, hi: 3.5 });
       });
+      const stairLamps: THREE.Vector3[] = [];
       // the bookcase that winds down the stair: the stretch of it that passes through this floor's room
       // (and pokes up round the hole above), a flat case per step of the turn
       if (d > 0) {
@@ -815,7 +816,29 @@ export class Library implements View {
           const a = A0 + base;
           const c = new THREE.Vector3(WELL.x + Math.cos(a) * rc, y, WELL.z + Math.sin(a) * rc);
           addFace(c, Math.atan2(-Math.cos(a), -Math.sin(a)), 3, chord, true, 'sp' + k, 0, false);
+          // a lantern on top of every fourth case, so the way down is never dark
+          if (k % 4 === 2) {
+            const lp = new THREE.Vector3(WELL.x + Math.cos(a) * (rc - 0.25), y + 2.9, WELL.z + Math.sin(a) * (rc - 0.25));
+            const lamp = glowSprite('#ffc070', 1.1, 0.9); lamp.position.copy(lp); g.add(lamp);
+            const cage = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 0.3, 6, 1, true), new THREE.MeshStandardMaterial({ color: '#2a2018', metalness: 0.8, roughness: 0.4, wireframe: true }));
+            cage.position.copy(lp); g.add(cage);
+            stairLamps.push(new THREE.Vector3(lp.x, y + 0.8, lp.z));
+          }
         }
+      }
+      // a great arch over the landing on every floor, so the way off the stair is plain to see
+      {
+        const ax = WELL.x + Math.cos(A0) * (WELL_R + 0.45), az = WELL.z + Math.sin(A0) * (WELL_R + 0.45);
+        const tx = -Math.sin(A0), tz = Math.cos(A0); // along the arch
+        for (const sgn of [-1, 1]) {
+          const px = ax + tx * 1.9 * sgn, pz = az + tz * 1.9 * sgn;
+          const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.55, 4.2, 0.55), stone); pillar.position.set(px, 2.1, pz); g.add(pillar);
+          colliders.push({ x0: px - 0.3, x1: px + 0.3, z0: pz - 0.3, z1: pz + 0.3, hi: 4 });
+          const torch = glowSprite(L.flame, 0.9, 0.9); torch.position.set(px - Math.cos(A0) * 0.1, 3.0, pz + 0.35); g.add(torch);
+        }
+        const lintel = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.6, 0.65), stone); lintel.position.set(ax, 4.5, az); lintel.rotation.y = Math.abs(tx) > 0.5 ? 0 : Math.PI / 2; g.add(lintel);
+        const key = glowSprite(L.candle, 1.6, 0.6); key.position.set(ax, 4.1, az); g.add(key);
+        stairLamps.push(new THREE.Vector3(ax, 1.2, az));
       }
       HALL_CANDLES.forEach(([x, z]) => { stands.push(new THREE.Vector3(x, 0, z)); colliders.push({ x0: x - 0.25, x1: x + 0.25, z0: z - 0.25, z1: z + 0.25, hi: 1.6 }); });
 
@@ -937,6 +960,8 @@ export class Library implements View {
         poles.computeBoundingSphere(); wicks.computeBoundingSphere();
         g.add(poles, wicks);
       }
+      // the stair's lanterns draw the candle light too (added after the candle stands, so they get no pole)
+      stands.push(...stairLamps);
       // the decks, stairs, rails and armchairs
       for (const [list, mat] of [[woodB, woodMat], [brassB, brass], [clothB, clothMat]] as const) {
         if (!list.length) continue;
@@ -1702,7 +1727,7 @@ export class Library implements View {
     this.placeLights();
     const next = LEVELS[Math.min(DEEPEST, d + 1)];
     this.wellLight.color.set(next.candle); this.wellLight.position.set(WELL.x, -d * LH - LH * 0.55, WELL.z);
-    this.wellLight.intensity = d < DEEPEST ? 6 : 0;
+    this.wellLight.intensity = d < DEEPEST ? 16 : 0;
     if (snap) {
       this.env.fog.set(L.fog); this.env.sky.set(L.sky); this.env.ground.set(L.ground);
       this.env.hemi = L.hemi; this.env.near = L.near; this.env.far = L.far; this.env.lantern = L.lantern;
@@ -1767,6 +1792,24 @@ export class Library implements View {
       const wantLow = this.crouch || !!(k.KeyC || k.ControlLeft || k.ControlRight);
       const low = wantLow || (this.grounded && this.headroom(this.pos.x, this.pos.z, lv0) < STAND);
       this.eyeH += ((low ? EYE_LOW : EYE) - this.eyeH) * (1 - Math.exp(-dt * 12));
+      // on a spiral stair, pushing forward on the touch stick steers you round the curve (up or down,
+      // whichever way you are facing), so nobody has to keep turning the camera
+      if (Math.hypot(this.joy.x, this.joy.y) > 0.2 && -this.joy.y > 0.3) {
+        for (const spr of this.spirals) {
+          const dx = this.pos.x - spr.x, dz = this.pos.z - spr.z, r = Math.hypot(dx, dz);
+          if (r < spr.rIn - 0.3 || r > spr.rOut + 0.3 || feet0 > -spr.top * LH + 0.6 || feet0 < -spr.bot * LH - 0.6) continue;
+          const a = Math.atan2(dz, dx);
+          let tx = -Math.sin(a), tz = Math.cos(a); // the way round that goes down
+          const fx0 = -Math.sin(this.yaw), fz0 = -Math.cos(this.yaw);
+          if (tx * fx0 + tz * fz0 < -0.25) { tx = -tx; tz = -tz; } // facing roughly across it: go down
+          const pull = ((spr.rIn + spr.rOut) / 2 - r) * 0.35;
+          const wx = tx + Math.cos(a) * pull, wz = tz + Math.sin(a) * pull;
+          const want = Math.atan2(-wx, -wz);
+          const diff = Math.atan2(Math.sin(want - this.yaw), Math.cos(want - this.yaw));
+          this.yaw += diff * Math.min(1, dt * 5);
+          break;
+        }
+      }
       if (len > 0.05) {
         const sp = (low ? 1.7 : k.ShiftLeft || k.ShiftRight ? 5.2 : 3.4) * dt / Math.max(1, len);
         const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
