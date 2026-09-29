@@ -4,7 +4,7 @@ An async PvP autobattler where your build is a spellbook. Borrow spells from a c
 
 This is the v2 prototype described in the *Inkbound Design Manuscript*: fusion replaces the old modifier grammar, the duel moves to a top-down board, and the new **Curios & Oddments** shop sells staves, trinkets and reagents.
 
-Play it in the browser: https://zulbiabamiyeh.github.io/Library/ (built and published by `.github/workflows/pages.yml` on every push).
+Play it in the browser: https://zulbiabamiyeh.github.io/Library/ (built by `.github/workflows/pages.yml` on every push and served from the `gh-pages` branch).
 
 ## Running it
 
