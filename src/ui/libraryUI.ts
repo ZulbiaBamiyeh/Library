@@ -13,6 +13,7 @@ import { codex, hint } from '../game/codex';
 import { hashStr, mulberry32, weighted } from '../sim/rng';
 import { resolveSpell } from '../data/fusion';
 import { play } from '../audio/sfx';
+import { mountTome, setTome, tomeKey, tomeOpen } from './deskUI';
 
 const SIZE_WORD = ['A slim volume', 'A stout volume', 'A heavy tome'];
 let layoutKey = '';
@@ -265,13 +266,13 @@ export const libraryScreen: Screen = {
     ui().innerHTML = `
       <div class="topbar"><div class="plate round-info" id="lib-round"></div><div class="plate counters" id="lib-counters"></div></div>
       <div id="crosshair"></div><div id="tag-box"></div>
-      <div id="look-prompt" class="hidden">Click to look around · WASD walk · Shift run · Space jump · C crouch · I curios · Esc frees the mouse</div>
+      <div id="look-prompt" class="hidden">Click to look around · WASD walk · Shift run · Space jump · C crouch · E tome · I curios · Esc frees the mouse</div>
       <button id="crouch-btn" class="btn quiet small ${COARSE ? '' : 'hidden'}" aria-pressed="false">Crouch</button>
       <div id="joystick" class="${COARSE ? '' : 'hidden'}"><div class="knob"></div></div>
       <div id="hover-tip" class="hidden"></div>
       <div class="lib-bottom">
         <div class="plate satchel"><div class="satchel-label">Satchel · tap a spell to burn it</div><div class="satchel-row" id="lib-satchel"></div></div>
-        <div class="nav-btns"><button class="btn quiet" id="to-ring" aria-label="Duelling Ring">← <span class="nl">Duelling </span>Ring</button><button class="btn quiet" id="to-gear" aria-label="Your curios">Curios</button><button class="btn gold" id="to-desk" aria-label="Binding Desk"><span class="nl">Binding </span>Desk</button></div>
+        <div class="nav-btns"><button class="btn quiet" id="to-ring" aria-label="Duelling Ring">← <span class="nl">Duelling </span>Ring</button><button class="btn quiet" id="to-gear" aria-label="Your curios">Curios</button><button class="btn quiet" id="to-tome" aria-label="Your tome (E)">Tome</button><button class="btn gold" id="to-desk" aria-label="Binding Desk"><span class="nl">Binding </span>Desk</button></div>
       </div>`;
     shopHere = null;
     stockShops();
@@ -282,8 +283,14 @@ export const libraryScreen: Screen = {
     cb.onclick = () => { lib.crouch = !lib.crouch; cb.setAttribute('aria-pressed', String(lib.crouch)); cb.classList.toggle('on', lib.crouch); };
     $('#to-ring').onclick = enterRing;
     $('#to-desk').onclick = () => app.go('desk');
+    $('#to-tome').onclick = () => setTome(true);
+    mountTome(ui(), on => {
+      lib.keys = {}; lib.joy = { x: 0, y: 0 }; lib.setHover(null);
+      $('#hover-tip').classList.add('hidden');
+      if (!on) { renderHud(); if (mouseLook && !locked()) tryLock(); }
+    });
     const canvas = app.engine.renderer.domElement;
-    const active = () => app.screen === 'library' && !modalOpen();
+    const active = () => app.screen === 'library' && !modalOpen() && !tomeOpen();
     const act = (p: ReturnType<typeof lib.pick>) => {
       if (p?.kind === 'book') openBook(p.d, p.i);
       else if (p?.kind === 'ware') openWare(p.shop, p.i);
@@ -349,6 +356,7 @@ export const libraryScreen: Screen = {
       if (input.moved < 8 && performance.now() - input.t0 < 1500) act(lib.pick(e.clientX, e.clientY));
     }) as EventListener);
     on(window, 'keydown', ((e: KeyboardEvent) => {
+      if (app.screen === 'library' && tomeKey(e)) return;
       if (e.code === 'Escape') { closeModal(); return; }
       if (!active()) return;
       if (e.code === 'Space') { e.preventDefault(); lib.jump(); return; }

@@ -510,3 +510,4 @@ button:focus-visible, [tabindex]:focus-visible, select:focus-visible { outline: 
 .choice.ancient { border-color: rgba(122,26,48,.45); background: linear-gradient(90deg, rgba(122,26,48,.12), rgba(255,255,255,.2)); }
 .ancient-tag { margin-left: 8px; font-family: var(--sans); font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #f4e6c8; background: #5a1428; padding: 2px 6px; border-radius: 3px; vertical-align: 2px; }
 #look-prompt { position: fixed; left: 50%; top: 24%; max-width: 86vw; text-align: center; transform: translateX(-50%); padding: 8px 14px; border-radius: 6px; background: rgba(12,10,18,.72); color: var(--text); font-size: 14px; pointer-events: none; letter-spacing: .02em; box-shadow: 0 6px 24px rgba(0,0,0,.5); }
+.tome-hide { visibility: hidden !important; }

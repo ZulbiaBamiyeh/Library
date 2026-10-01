@@ -125,9 +125,9 @@ function render() {
   const nextWard = WARD_UNLOCKS.find(x => x > r.round && wardsForRound(x) > r.wards.length);
   const opp = r.opponent!;
   let h = `<header class="bd-head">
-    <div class="bd-title"><h2>The Binding Desk</h2><div class="bd-sub">Round ${r.round} ${pips(r.wins, r.losses)} <span class="bd-opp">· next: <b>${esc(opp.name)}</b></span></div></div>
+    <div class="bd-title"><h2>${app.screen === 'desk' ? 'The Binding Desk' : 'Your Tome'}</h2><div class="bd-sub">Round ${r.round} ${pips(r.wins, r.losses)} <span class="bd-opp">· next: <b>${esc(opp.name)}</b></span></div></div>
     <div class="bd-tabs" role="tablist"><button role="tab" data-tab="tome" class="${tab === 'tome' ? 'on' : ''}">Tome</button><button role="tab" data-tab="bind" class="${tab === 'bind' ? 'on' : ''}">Bind</button></div>
-    <div class="bd-nav"><button class="btn quiet small" id="d-how" aria-label="How binding works">?</button><button class="btn quiet small" id="d-codex">Codex</button><button class="btn quiet small" id="d-leave">Leave the desk</button>
+    <div class="bd-nav"><button class="btn quiet small" id="d-how" aria-label="How binding works">?</button><button class="btn quiet small" id="d-codex">Codex</button><button class="btn quiet small" id="d-leave">${app.screen === 'desk' ? 'Leave the desk' : 'Close the tome'}</button>
       <button class="btn gold" id="d-duel">Begin the duel →</button></div>
   </header>
   <main class="bd-main" data-tab="${tab}">`;
@@ -383,7 +383,7 @@ function wire() {
     sel = null; saveRun(); render();
   };
   $('#d-codex').onclick = showCodex;
-  $('#d-leave').onclick = () => setSeated(false);
+  $('#d-leave').onclick = () => setTome(false);
   $('#d-how').onclick = () => {
     showModal(`<div class="sheet" role="dialog" aria-label="How binding works"><h2 style="font-size:28px">How binding works</h2><ul class="bd-how" style="font-size:15px">
       <li><b>Base</b> decides what the spell <i>is</i>: a bolt, a summon, a curse.</li>
@@ -409,6 +409,48 @@ function wire() {
 }
 
 const listeners: [string, EventListener][] = [['pointerdown', onDown as EventListener], ['pointermove', onMove as EventListener], ['pointerup', onUp as EventListener], ['pointercancel', onUp as EventListener]];
+
+// ----- the tome opens over whatever screen you are on: at the desk by sitting down, anywhere with E -----
+let tomeOn = false;
+let onTomeChange: (on: boolean) => void = () => {};
+export const tomeOpen = () => tomeOn;
+export function mountTome(host: HTMLElement, changed: (on: boolean) => void) {
+  host.insertAdjacentHTML('beforeend', '<div id="bd" class="closed"></div><div id="bd-peek" class="preview hidden"></div><div id="bd-sheet" class="hidden"></div>');
+  tomeOn = false; onTomeChange = changed; sel = null; tab = 'bind'; drag = null;
+  const d = $('#bd');
+  for (const [k, f] of listeners) d.addEventListener(k, f);
+  d.addEventListener('pointerleave', () => { document.getElementById('bd-peek')?.classList.add('hidden'); peekKey = ''; });
+}
+export function setTome(on: boolean) {
+  if (on === tomeOn || !document.getElementById('bd')) return;
+  tomeOn = on;
+  $('#bd').classList.toggle('closed', !on);
+  // the rest of the screen's HUD steps aside while the tome is open
+  for (const el of Array.from(ui().children)) if (!el.id.startsWith('bd')) el.classList.toggle('tome-hide', on);
+  if (on) {
+    if (document.pointerLockElement) document.exitPointerLock();
+    const r = run!;
+    while (r.lines.length < linesForRound(r.round)) r.lines.push(null);
+    while (r.wards.length < wardsForRound(r.round)) r.wards.push({ cond: 'loop', spell: null });
+    sel = null; render(); play('page', 0.5);
+  } else {
+    sel = null; touchSheet();
+    document.querySelectorAll('.bd-ghost').forEach(g => g.remove());
+    document.getElementById('bd-peek')?.classList.add('hidden'); peekKey = '';
+    drag = null;
+  }
+  onTomeChange(on);
+}
+// E opens and closes the tome; Esc puts down what you hold, then closes it. True when the key was used.
+export function tomeKey(e: KeyboardEvent): boolean {
+  if (e.target instanceof HTMLSelectElement || e.target instanceof HTMLInputElement) return false;
+  if (e.code === 'Escape' && tomeOn) {
+    if (modalOpen()) closeModal(); else if (sel) { sel = null; render(); } else setTome(false);
+    return true;
+  }
+  if (e.code === 'KeyE' && !modalOpen() && !e.repeat) { setTome(!tomeOn); return true; }
+  return false;
+}
 // ----- the study: walk about, sit at the desk to bind, go home through the door -----
 const input = { down: false, id: -1, lx: 0, ly: 0, t0: 0, moved: 0 };
 let lockAllowed = true;
@@ -417,22 +459,7 @@ function on(t: EventTarget, k: string, f: EventListener) { t.addEventListener(k,
 const cvs = () => app.engine.renderer.domElement;
 const locked = () => document.pointerLockElement === cvs();
 
-function setSeated(on: boolean) {
-  const st = app.study;
-  st.seated = on;
-  document.getElementById('bd')?.classList.toggle('closed', !on);
-  document.getElementById('study-hud')?.classList.toggle('hidden', on);
-  if (on) {
-    if (locked()) document.exitPointerLock();
-    st.hover = null; st.keys = {};
-    sel = null; render(); play('page', 0.5);
-  } else {
-    sel = null; touchSheet();
-    document.querySelectorAll('.bd-ghost').forEach(g => g.remove());
-    drag = null;
-    if (lockAllowed && !COARSE) tryLock();
-  }
-}
+function setSeated(on: boolean) { setTome(on); }
 function tryLock() {
   const c = cvs();
   try { const pr = c.requestPointerLock() as unknown as Promise<void> | undefined; pr?.catch?.(() => {}); } catch { /* not allowed here */ }
@@ -461,14 +488,10 @@ function actOn(p: StudyPick) {
 }
 const onKey = (e: KeyboardEvent) => {
   const st = app.study;
-  if (e.code === 'Escape') {
-    if (modalOpen()) { closeModal(); return; }
-    if (sel) { sel = null; render(); return; }
-    if (st.seated) { setSeated(false); return; }
-    return;
-  }
+  if (tomeKey(e)) return;
+  if (e.code === 'Escape') { if (modalOpen()) closeModal(); return; }
   if (st.seated || modalOpen()) return;
-  if (e.code === 'KeyE' || e.code === 'Enter') { actOn(st.pick(window.innerWidth / 2, window.innerHeight / 2)); return; }
+  if (e.code === 'Enter') { actOn(st.pick(window.innerWidth / 2, window.innerHeight / 2)); return; }
   st.keys[e.code] = true;
 };
 const onKeyUp = (e: KeyboardEvent) => { app.study.keys[e.code] = false; };
@@ -537,17 +560,14 @@ export const deskScreen: Screen = {
     st.setOwned(r.staff, r.trinkets, r.stash, r.reagents);
     st.setShelf(r.shelf || []);
     app.engine.setView(st);
-    while (r.lines.length < linesForRound(r.round)) r.lines.push(null);
-    while (r.wards.length < wardsForRound(r.round)) r.wards.push({ cond: 'loop', spell: null });
     ui().innerHTML = `<div id="study-hud"><div id="crosshair"></div>
-        <div id="look-prompt" class="hidden">Click to look around · WASD walk · click the desk to bind · the door leads back · Esc frees the mouse</div>
+        <div id="look-prompt" class="hidden">Click to look around · WASD walk · click the desk or press E to bind · the door leads back · Esc frees the mouse</div>
         <div id="joystick" class="${COARSE ? '' : 'hidden'}"><div class="knob"></div></div></div>
-      <div id="study-tip" class="hidden"></div><div id="bd" class="closed"></div><div id="bd-peek" class="preview hidden"></div><div id="bd-sheet" class="hidden"></div>`;
-    sel = null;
-    tab = 'bind';
-    const d = $('#bd');
-    for (const [k, f] of listeners) d.addEventListener(k, f);
-    d.addEventListener('pointerleave', () => { document.getElementById('bd-peek')?.classList.add('hidden'); peekKey = ''; });
+      <div id="study-tip" class="hidden"></div>`;
+    mountTome(ui(), on => {
+      st.seated = on;
+      if (on) { st.hover = null; st.keys = {}; showTip(null, 0, 0); } else if (lockAllowed && !COARSE) tryLock();
+    });
     wireStudy();
   },
   tick() {
