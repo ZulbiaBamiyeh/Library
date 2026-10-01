@@ -100,37 +100,37 @@ export const LEVELS: LevelDef[] = [
     wall: '#ffffff', floor: '#ffffff', wood: '#ffffff', ceil: '#150f14', candle: '#ffa860', flame: '#ffb05a', candleI: 1, lantern: 0,
     mote: '#ffe2b0', spine: '#ffffff', spineMix: 0, titles: [] },
   { name: 'The Lower Stacks', sub: 'Where the dust is older than the books',
-    fog: '#0a0806', near: 4, far: 22, sky: '#6a5a48', ground: '#1a1008', hemi: 0.38,
-    wall: '#9a8a74', floor: '#8a7a66', wood: '#8a765e', ceil: '#100c08', candle: '#ff9040', flame: '#ff9a40', candleI: 0.85, lantern: 5,
+    fog: '#0a0806', near: 6.5, far: 29, sky: '#6a5a48', ground: '#1a1008', hemi: 0.60,
+    wall: '#9a8a74', floor: '#8a7a66', wood: '#8a765e', ceil: '#100c08', candle: '#ff9040', flame: '#ff9a40', candleI: 1.05, lantern: 9,
     mote: '#c8b898', spine: '#6a5a40', spineMix: 0.45,
     titles: ['A Ledger of Unpaid Debts', 'Minutes of a Meeting Nobody Attended', 'The Index to a Lost Book', 'Marginalia, Volume IX', 'Concerning Dust', 'An Almanac of Wrong Years', 'Second Drafts of the Sun', 'Notes Found in a Wall', 'Overdue Since the Flood', 'A Catalogue of Other Catalogues'] },
   { name: 'The Ossuary Shelves', sub: 'Shelved among the bones of old readers',
-    fog: '#060a07', near: 3.5, far: 20, sky: '#5a7a60', ground: '#0a100a', hemi: 0.34,
-    wall: '#a8ae98', floor: '#7a8070', wood: '#b8b098', ceil: '#0a0c08', candle: '#7aff9a', flame: '#b0ffc0', candleI: 0.75, lantern: 6,
+    fog: '#060a07', near: 6, far: 27, sky: '#5a7a60', ground: '#0a100a', hemi: 0.56,
+    wall: '#a8ae98', floor: '#7a8070', wood: '#b8b098', ceil: '#0a0c08', candle: '#7aff9a', flame: '#b0ffc0', candleI: 0.95, lantern: 10,
     mote: '#b8ffc8', spine: '#d8d0b8', spineMix: 0.5,
     titles: ['The Book of Knucklebones', 'Hymns for the Recently Buried', 'On the Grammar of Teeth', 'A Census of the Quiet', 'Ossuary Accounts', 'What the Marrow Knows', 'Rites of the Lesser Crypt', 'Epitaphs, Unfinished', 'Bound in Someone', 'The Last Borrower'] },
   { name: 'The Root Cellar', sub: 'Something old is growing through the shelves',
-    fog: '#070a04', near: 3.5, far: 20, sky: '#7a7040', ground: '#0a0804', hemi: 0.42,
-    wall: '#7a6a4a', floor: '#5a4a30', wood: '#6a5028', ceil: '#0a0804', candle: '#ffb060', flame: '#ffc890', candleI: 0.8, lantern: 7,
+    fog: '#070a04', near: 6, far: 27, sky: '#7a7040', ground: '#0a0804', hemi: 0.64,
+    wall: '#7a6a4a', floor: '#5a4a30', wood: '#6a5028', ceil: '#0a0804', candle: '#ffb060', flame: '#ffc890', candleI: 1, lantern: 11,
     mote: '#d8f07a', spine: '#4a5a20', spineMix: 0.45,
     titles: ['A Herbal of Things That Should Not Grow', 'Root and Rune', 'The Patient Seed', 'Mycelium, a Correspondence', 'What Lives Under the Stacks', 'Compost of the Old Masters', 'The Gardener Who Stayed', 'Taproots', 'Spores, Collected', 'The Green Index'] },
   { name: 'The Drowned Archive', sub: 'The sea got in, long ago, and stayed to read',
-    fog: '#03101a', near: 3, far: 19, sky: '#3a6a9a', ground: '#02080f', hemi: 0.38,
-    wall: '#5a7890', floor: '#3a5a70', wood: '#4a6a78', ceil: '#03080c', candle: '#5ab0ff', flame: '#a0e0ff', candleI: 0.75, lantern: 6,
+    fog: '#03101a', near: 5.5, far: 26, sky: '#3a6a9a', ground: '#02080f', hemi: 0.60,
+    wall: '#5a7890', floor: '#3a5a70', wood: '#4a6a78', ceil: '#03080c', candle: '#5ab0ff', flame: '#a0e0ff', candleI: 0.95, lantern: 10,
     mote: '#9fdcff', spine: '#2a6a6a', spineMix: 0.5,
     titles: ['Tide Tables for a Drowned City', 'The Salt Psalter', 'Letters Written Underwater', 'The Weeping Folio', 'Concerning the Deep King', 'A Map of Where the Sea Was', 'Brine and Vellum', 'Songs the Anchor Sang', 'Waterlogged Prophecies', 'The Pearl Diver\'s Last Page'] },
   { name: 'The Inverse Stacks', sub: 'Up is a matter of opinion down here',
-    fog: '#0b0414', near: 3, far: 18, sky: '#8a5ac0', ground: '#100418', hemi: 0.38,
-    wall: '#8a68b0', floor: '#6a4a8a', wood: '#6a4a8a', ceil: '#0c0414', candle: '#c070ff', flame: '#e8b0ff', candleI: 0.8, lantern: 6,
+    fog: '#0b0414', near: 5.5, far: 25, sky: '#8a5ac0', ground: '#100418', hemi: 0.60,
+    wall: '#8a68b0', floor: '#6a4a8a', wood: '#6a4a8a', ceil: '#0c0414', candle: '#c070ff', flame: '#e8b0ff', candleI: 1, lantern: 10,
     mote: '#e0c0ff', spine: '#7a3aa0', spineMix: 0.4,
     titles: ['A Book Read Backwards', 'Instructions for Falling Up', 'The Day Before Yesterday, Tomorrow', 'Recipes for Unbaking Bread', 'This Title Is Upside Down', 'On Shelves That Shelve Themselves', 'An Inventory of Absent Things', 'ǝɹǝɥ ʇou ǝɹ,noʎ', 'The Mirror\'s Diary', 'Answers, Without Questions'] },
   { name: 'The Stopped Clocks', sub: 'Time gave up down here, mid-sentence',
-    fog: '#0e0a04', near: 3, far: 18, sky: '#a08a50', ground: '#0e0804', hemi: 0.4,
-    wall: '#8a7a5a', floor: '#6a5a3a', wood: '#5a4a2a', ceil: '#0e0a04', candle: '#ffd070', flame: '#ffe0a0', candleI: 0.8, lantern: 7,
+    fog: '#0e0a04', near: 5.5, far: 25, sky: '#a08a50', ground: '#0e0804', hemi: 0.62,
+    wall: '#8a7a5a', floor: '#6a5a3a', wood: '#5a4a2a', ceil: '#0e0a04', candle: '#ffd070', flame: '#ffe0a0', candleI: 1, lantern: 11,
     mote: '#ffe8a0', spine: '#8a6a2a', spineMix: 0.45,
     titles: ['A Quarter Past Never', 'The Almanac of the Last Second', 'Escapements', 'On Waiting', 'The Clockmaker\'s Apology', 'Minutes, Unspent', 'The Hour That Was Skipped', 'Pendulum Studies', 'Late', 'Chronicle of a Single Moment'] },
   { name: 'The Unwritten', sub: 'Nothing here has been written yet. Except you',
-    fog: '#000000', near: 2.5, far: 16, sky: '#ffffff', ground: '#000000', hemi: 0.14,
+    fog: '#000000', near: 4, far: 20, sky: '#ffffff', ground: '#000000', hemi: 0.32,
     wall: '#2a2a2e', floor: '#18181c', wood: '#1a1a1e', ceil: '#000000', candle: '#e8e8ff', flame: '#ffffff', candleI: 0.6, lantern: 7,
     mote: '#ffffff', spine: '#f0f0f0', spineMix: 0.75,
     titles: ['[this title has been eaten]', 'The Book That Reads You', 'Untitled', '—', 'What the Ink Remembers', 'The First Word', 'Do Not Finish This', 'The Author, Annotated', 'Blank', 'You Were Here Before'] },
@@ -1732,7 +1732,7 @@ export class Library implements View {
     if (snap) {
       this.env.fog.set(L.fog); this.env.sky.set(L.sky); this.env.ground.set(L.ground);
       this.env.hemi = L.hemi; this.env.near = L.near; this.env.far = L.far; this.env.lantern = L.lantern;
-      this.env.exposure = 1.15 - d * 0.025; this.env.vignette = 1 + d * 0.1;
+      this.env.exposure = 1.15 + d * 0.015; this.env.vignette = 1 + d * 0.04;
     }
   }
 
@@ -1872,7 +1872,7 @@ export class Library implements View {
     const E = this.env;
     E.fog.lerp(new THREE.Color(L.fog), kk); E.sky.lerp(new THREE.Color(L.sky), kk); E.ground.lerp(new THREE.Color(L.ground), kk);
     E.hemi += (L.hemi - E.hemi) * kk; E.near += (L.near - E.near) * kk; E.far += (L.far - E.far) * kk; E.lantern += (L.lantern - E.lantern) * kk;
-    E.exposure += (1.15 - this.level * 0.025 - E.exposure) * kk; E.vignette += (1 + this.level * 0.1 - E.vignette) * kk;
+    E.exposure += (1.15 + this.level * 0.015 - E.exposure) * kk; E.vignette += (1 + this.level * 0.04 - E.vignette) * kk;
     (this.scene.background as THREE.Color).copy(E.fog);
     const fog = this.scene.fog as THREE.Fog; fog.color.copy(E.fog); fog.near = E.near * this.drawScale; fog.far = E.far * this.drawScale;
     this.hemi.color.copy(E.sky); this.hemi.groundColor.copy(E.ground); this.hemi.intensity = E.hemi;
